@@ -19,12 +19,12 @@ if __name__ == "__main__":
     conn = Neo4jConnection()
     try:
         seed_enum_nodes(conn)
+        load_documents(conn, batch_size=99999)
         load_personen(conn, batch_size=99999)
         load_fracties(conn, batch_size=99999)
         load_toezeggingen(conn, batch_size=99999)
         load_vergaderingen(conn, batch_size=99999)
         load_verslagen(conn, batch_size=99999)
-        load_documents(conn, batch_size=99999)
         load_stemmingen(conn, batch_size=99999)
         load_zaken(conn, batch_size=99999)
         load_activiteiten(conn, batch_size=99999)
