@@ -1,6 +1,7 @@
 from neo4j import GraphDatabase
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 class Neo4jConnection:
     def __init__(self):
@@ -12,10 +13,10 @@ class Neo4jConnection:
         :param password: Password for authentication (default: tkapi123)
         :param database: Database name (default: neo4j)
         """
-        uri = os.getenv("NEO4J_URI")
-        user = os.getenv("NEO4J_USER")
-        password = os.getenv("NEO4J_PASSWORD")
-        database = os.getenv("NEO4J_DATABASE")
+        uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        user = os.getenv("NEO4J_USER", "neo4j")
+        password = os.getenv("NEO4J_PASSWORD", "password")
+        database = os.getenv("NEO4J_DATABASE", "neo4j")
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
         self.database = database
 

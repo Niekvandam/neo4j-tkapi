@@ -1,3 +1,4 @@
+import datetime
 from tkapi import TKApi
 from tkapi.activiteit import ActiviteitActor
 from neo4j_connection import Neo4jConnection
@@ -9,7 +10,9 @@ api = TKApi()
 def load_activiteit_actors(conn: Neo4jConnection, batch_size: int = 50):
     api = TKApi()
     ActiviteitActor.expand_params = ['Activiteit','Persoon','Fractie','Commissie']
-    actors = api.get_items(ActiviteitActor, max_items=batch_size)
+    filter = ActiviteitActor.create_filter()
+    filter.add_filter_str("Datum ge 2024-01-01")
+    actors = api.get_items(ActiviteitActor, filter=filter)
     print(f"→ Fetched {len(actors)} ActiviteitActors")
     with conn.driver.session(database=conn.database) as session:
         for i, act in enumerate(actors, 1):
