@@ -1,9 +1,9 @@
 import datetime
 from tkapi import TKApi
 from tkapi.activiteit import ActiviteitActor
-from neo4j_connection import Neo4jConnection
-from helpers import merge_node, merge_rel
-from constants import REL_MAP_ACTOR
+from core.connection.neo4j_connection import Neo4jConnection
+from utils.helpers import merge_node, merge_rel
+from core.config.constants import REL_MAP_ACTOR
 
 api = TKApi()
 

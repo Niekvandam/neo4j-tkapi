@@ -7,18 +7,18 @@ from tkapi.persoon import Persoon
 from tkapi.fractie import Fractie
 from tkapi.agendapunt import Agendapunt
 from tkapi.zaak import Zaak
-from helpers import merge_node, merge_rel
+from utils.helpers import merge_node, merge_rel
 from .vlos_verslag_loader import load_vlos_verslag # Ensure this is at the top of common_processor.py
 import requests
 import concurrent.futures # For verslag XML download
+from typing import Optional
 
 # --- Processed ID Sets ---
 PROCESSED_DOSSIER_IDS = set()
 PROCESSED_BESLUIT_IDS = set()
 PROCESSED_STEMMING_IDS = set()
 PROCESSED_VERSLAG_IDS = set()
-# You might want to add more for other entities if they are processed this way
-# e.g., PROCESSED_ZAAK_IDS if Zaken are also processed as nested entities.
+PROCESSED_ZAAK_IDS = set()  # For Zaken processed as nested entities
 
 # --- Helper to download XML for Verslag ---
 def download_verslag_xml(verslag_id):
@@ -93,17 +93,27 @@ def process_and_load_besluit(session, besluit_obj: Besluit, related_agendapunt_i
 
     # Process Stemmingen related to this Besluit
     # Besluit.expand_params should include Stemming.type when Besluit itself is expanded
-    for stemming_obj in besluit_obj.stemmingen: # Accessing .stemmingen
-        if process_and_load_stemming(session, stemming_obj, besluit_obj.id):
-            pass # Processed new stemming
+    for stemming_obj in besluit_obj.stemmingen:
+        # Pass besluit_obj.id and besluit_obj.tekst
+        if process_and_load_stemming(session, stemming_obj, besluit_obj.id, besluit_obj.tekst): # MODIFIED CALL
+            pass 
         session.execute_write(merge_rel, 'Besluit', 'id', besluit_obj.id,
                               'Stemming', 'id', stemming_obj.id, 'HAS_STEMMING')
     return True
 
 
-def process_and_load_stemming(session, stemming_obj: Stemming, besluit_id: str):
+# src/loaders/common_processor.py
+
+# Modify process_and_load_stemming to accept the parent besluit_obj's text
+def process_and_load_stemming(session, stemming_obj: Stemming, parent_besluit_id: str, parent_besluit_tekst: Optional[str]):
     if not stemming_obj or not stemming_obj.id or stemming_obj.id in PROCESSED_STEMMING_IDS:
         return False
+
+    # Determine is_hoofdelijk using the passed parent_besluit_tekst
+    is_hoofdelijk_val = False
+    if parent_besluit_tekst:
+        is_hoofdelijk_val = 'hoofdelijk' in parent_besluit_tekst.lower()
+
 
     props = {
         'id': stemming_obj.id,
@@ -112,9 +122,9 @@ def process_and_load_stemming(session, stemming_obj: Stemming, besluit_id: str):
         'fractie_size': stemming_obj.fractie_size,
         'actor_naam': stemming_obj.actor_naam,
         'actor_fractie': stemming_obj.actor_fractie,
-        'persoon_id_prop': stemming_obj.persoon_id, # Storing actual ID from API
-        'fractie_id_prop': stemming_obj.fractie_id, # Storing actual ID from API
-        'is_hoofdelijk': stemming_obj.is_hoofdelijk,
+        'persoon_id_prop': stemming_obj.persoon_id,
+        'fractie_id_prop': stemming_obj.fractie_id,
+        'is_hoofdelijk': is_hoofdelijk_val, # Use the calculated value
     }
     session.execute_write(merge_node, 'Stemming', 'id', props)
     PROCESSED_STEMMING_IDS.add(stemming_obj.id)
@@ -193,10 +203,29 @@ def process_and_load_verslag(session, driver, verslag_obj: Verslag,
         
     return True
 
+def process_and_load_zaak(session, zaak_obj, related_entity_id: str = None, related_entity_type: str = None):
+    """
+    Process and load a Zaak object. This is a wrapper that imports from zaak_loader
+    to avoid circular imports.
+    """
+    if not zaak_obj or not zaak_obj.nummer or zaak_obj.nummer in PROCESSED_ZAAK_IDS:
+        return False
+    
+    # Import here to avoid circular imports
+    from .zaak_loader import process_and_load_zaak as _process_zaak
+    result = _process_zaak(session, zaak_obj, related_entity_id, related_entity_type)
+    
+    if result:
+        PROCESSED_ZAAK_IDS.add(zaak_obj.nummer)
+    
+    return result
+
+
 def clear_processed_ids():
     """Clears all global processed ID sets. Call at the beginning of a full run."""
     PROCESSED_DOSSIER_IDS.clear()
     PROCESSED_BESLUIT_IDS.clear()
     PROCESSED_STEMMING_IDS.clear()
     PROCESSED_VERSLAG_IDS.clear()
+    PROCESSED_ZAAK_IDS.clear()
     print("🧹 Cleared processed ID sets.")

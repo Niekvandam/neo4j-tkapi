@@ -1,9 +1,9 @@
 import datetime
 from tkapi import TKApi
 from tkapi.toezegging import Toezegging
-from neo4j_connection import Neo4jConnection
-from helpers import merge_node, merge_rel
-from constants import REL_MAP_TOEZEGGING
+from core.connection.neo4j_connection import Neo4jConnection
+from utils.helpers import merge_node, merge_rel
+from core.config.constants import REL_MAP_TOEZEGGING
 
 api = TKApi()
 
@@ -11,6 +11,7 @@ def load_toezeggingen(conn: Neo4jConnection):
     api = TKApi()
     Toezegging.expand_params = ['Activiteit', 'ToegezegdAanPersoon', 'ToegezegdAanFractie']
     filter = Toezegging.create_filter()
+    
     filter.add_filter_str("AanmaakDatum ge 2024-01-01")
 
     toezeggingen = api.get_items(Toezegging, filter=filter)

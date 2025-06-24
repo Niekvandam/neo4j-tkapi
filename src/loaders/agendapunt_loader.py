@@ -5,9 +5,19 @@ from tkapi.besluit import Besluit # For expand_params
 from tkapi.document import Document # For expand_params
 from tkapi.activiteit import Activiteit # For expand_params
 from tkapi.zaak import Zaak # For expand_params
-from neo4j_connection import Neo4jConnection
-from helpers import merge_node, merge_rel
-from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS
+from core.connection.neo4j_connection import Neo4jConnection
+from utils.helpers import merge_node, merge_rel
+from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
+from .vlos_verslag_loader import load_vlos_verslag
+from tkapi.util import util as tkapi_util
+from datetime import timezone
+
+# Import checkpoint functionality
+from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManager
+
+# Import the checkpoint decorator
+from core.checkpoint.checkpoint_decorator import checkpoint_loader
+
 # from .common_processors import process_and_load_document # If documents linked here need full processing
 # from .common_processors import process_and_load_zaak # If zaken linked here need full processing
 
@@ -66,45 +76,90 @@ def process_and_load_agendapunt(session, ap_obj: Agendapunt, related_activiteit_
     return True
 
 
-def load_agendapunten(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01"):
+@checkpoint_loader(checkpoint_interval=25)
+def load_agendapunten(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", skip_count: int = 0, _checkpoint_context=None):
+    """
+    DEPRECATED: Load Agendapunten with automatic checkpoint support using decorator.
+    
+    NOTE: Agendapunten should be processed through Activiteiten since every Agendapunt 
+    belongs to exactly one Activiteit. This standalone loader is kept for compatibility
+    but should not be used in normal operation.
+    
+    The @checkpoint_loader decorator automatically handles:
+    - Progress tracking every 25 items
+    - Skipping already processed items
+    - Error handling and logging
+    - Final progress reporting
+    """
+    print("⚠️ WARNING: Using deprecated standalone agendapunt loader.")
+    print("   Agendapunten should be processed through Activiteiten instead.")
+    print("   This loader is kept for compatibility but may be removed in the future.")
     api = TKApi()
-    start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-
-    # --- Manage expand_params ---
-    original_agendapunt_expand_params = list(Agendapunt.expand_params or [])
-    current_expand_params = list(original_agendapunt_expand_params)
-
-    # Ensure Besluit, Document, Activiteit, Zaak are in expand_params
-    # Default Agendapunt.expand_params = ['Activiteit', 'Besluit', 'Document']
-    if Besluit.type not in current_expand_params: current_expand_params.append(Besluit.type)
-    if Document.type not in current_expand_params: current_expand_params.append(Document.type)
-    if Activiteit.type not in current_expand_params: current_expand_params.append(Activiteit.type)
-    if Zaak.type not in current_expand_params: current_expand_params.append(Zaak.type) # Add Zaak
-
-    Agendapunt.expand_params = current_expand_params
-    # ---
+    start_datetime_obj = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    odata_start_date_str = tkapi_util.datetime_to_odata(start_datetime_obj.replace(tzinfo=timezone.utc))
 
     filter = Agendapunt.create_filter()
-    # Agendapunt has 'Aanvangstijd'
-    filter.add_filter_str(f"Aanvangstijd ge {start_date.isoformat()}")
+    filter.add_filter_str(f"GeplandeDatum ge {odata_start_date_str}")
     
-    agendapunten = api.get_items(Agendapunt, filter=filter)
-    print(f"→ Fetched {len(agendapunten)} Agendapunten since {start_date_str}")
+    agendapunten_api = api.get_items(Agendapunt, filter=filter)
+    print(f"→ Fetched {len(agendapunten_api)} Agendapunten since {start_date_str}")
 
-    # --- Restore expand_params ---
-    Agendapunt.expand_params = original_agendapunt_expand_params
-    # ---
-    
-    if not agendapunten:
+    if not agendapunten_api:
         print("No agendapunten found for the date range.")
         return
 
-    with conn.driver.session(database=conn.database) as session:
-        PROCESSED_BESLUIT_IDS.clear() # Clear for this specific scope if needed, or manage globally
+    # Apply skip_count if specified
+    if skip_count > 0:
+        if skip_count >= len(agendapunten_api):
+            print(f"⚠️ Skip count ({skip_count}) is greater than or equal to total items ({len(agendapunten_api)}). Nothing to process.")
+            return
+        agendapunten_api = agendapunten_api[skip_count:]
+        print(f"⏭️ Skipping first {skip_count} items. Processing {len(agendapunten_api)} remaining items.")
 
-        for i, ap_obj in enumerate(agendapunten, 1):
-            if i % 100 == 0 or i == len(agendapunten):
-                print(f"  → Processing Agendapunt {i}/{len(agendapunten)}: {ap_obj.id}")
-            process_and_load_agendapunt(session, ap_obj)
+    def process_single_agendapunt(agendapunt_obj):
+        with conn.driver.session(database=conn.database) as session:
+            if not agendapunt_obj or not agendapunt_obj.id:
+                return
 
-    print("✅ Loaded Agendapunten and their related Besluiten, Documenten, Zaken.")
+            # Create Agendapunt node
+            props = {
+                'id': agendapunt_obj.id,
+                'nummer': agendapunt_obj.nummer,
+                'onderwerp': agendapunt_obj.onderwerp or '',
+                'toelichting': agendapunt_obj.toelichting,
+                'status': agendapunt_obj.status,
+                'datum': str(agendapunt_obj.datum) if agendapunt_obj.datum else None,
+                'geplande_datum': str(agendapunt_obj.geplande_datum) if agendapunt_obj.geplande_datum else None,
+                'volgorde': agendapunt_obj.volgorde
+            }
+            session.execute_write(merge_node, 'Agendapunt', 'id', props)
+
+            # Note: Since this is a deprecated standalone loader, we only process the agendapunt itself
+            # Related items should be processed through the proper activiteit -> agendapunt hierarchy
+            # If you need full relationship processing, use the activiteit loader instead
+            
+            # Just call the processor function which handles relationships properly
+            process_and_load_agendapunt(session, agendapunt_obj)
+
+    # Clear processed IDs at the beginning
+    PROCESSED_ZAAK_IDS.clear()
+
+    # Use the checkpoint context to process items automatically
+    if _checkpoint_context:
+        _checkpoint_context.process_items(agendapunten_api, process_single_agendapunt)
+    else:
+        # Fallback for when decorator is not used
+        for agendapunt_obj in agendapunten_api:
+            process_single_agendapunt(agendapunt_obj)
+
+    print("✅ Loaded Agendapunten and their related entities.")
+
+
+# Keep the original function for backward compatibility (if needed)
+def load_agendapunten_original(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", checkpoint_manager=None):
+    """
+    Original load_agendapunten function for backward compatibility.
+    This version is deprecated - use load_agendapunten() for the new decorator-based version.
+    """
+    # This could import the old implementation if needed, but for now we'll use the new one
+    return load_agendapunten(conn, batch_size, start_date_str)

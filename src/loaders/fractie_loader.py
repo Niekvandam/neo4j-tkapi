@@ -1,7 +1,7 @@
 from tkapi import TKApi
 from tkapi.fractie import Fractie
-from neo4j_connection import Neo4jConnection
-from helpers import merge_node, merge_rel
+from core.connection.neo4j_connection import Neo4jConnection
+from utils.helpers import merge_node, merge_rel
 
 api = TKApi()
 

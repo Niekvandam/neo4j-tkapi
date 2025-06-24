@@ -1,5 +1,5 @@
-from neo4j_connection import Neo4jConnection
-from helpers import merge_node
+from core.connection.neo4j_connection import Neo4jConnection
+from utils.helpers import merge_node
 from tkapi.zaak import ZaakSoort, KabinetsAppreciatie, ZaakActorRelatieSoort
 from tkapi.document import DocumentSoort
 from tkapi.activiteit import ActiviteitSoort, ActiviteitStatus, DatumSoort, ActiviteitRelatieSoort

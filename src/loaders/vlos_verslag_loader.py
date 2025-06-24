@@ -7,7 +7,7 @@ from tkapi import TKApi # For fetching API activities if needed directly here (o
 from tkapi.activiteit import Activiteit as TKApiActiviteit, ActiviteitFilter # For type hinting and filtering
 from tkapi.util import util as tkapi_util
 
-from helpers import merge_node, merge_rel
+from utils.helpers import merge_node, merge_rel
 # No Neo4jConnection needed here directly if driver is passed
 
 # For fuzzy matching
