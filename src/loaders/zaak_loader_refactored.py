@@ -10,6 +10,7 @@ from tkapi.dossier import Dossier # For expand_params (newly added)
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
 from core.config.constants import REL_MAP_ZAAK
+import time
 
 # Import processors for related entities that might need full processing
 from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS
@@ -20,85 +21,73 @@ from datetime import timezone
 # Import the new checkpoint decorator
 from core.checkpoint.checkpoint_decorator import checkpoint_zaak_loader
 
-
-# New processor function for a single Zaak, if needed by other loaders
-def process_and_load_zaak(session, zaak_obj: Zaak, related_entity_id: str = None, related_entity_type:str = None):
-    # Add to a PROCESSED_ZAAK_IDS if you create one
-    if not zaak_obj or not zaak_obj.nummer: # Assuming 'nummer' is the key
-        return False
-
-    # Key conflict: vlos_verslag_loader uses 'id' for Zaak, here we use 'nummer'.
-    # This needs to be harmonized. For now, this function uses 'nummer'.
-    # If a Zaak node with this 'nummer' already exists, its 'id' property might be overwritten
-    # if the Zaak object from API has a different 'id' (GUID) than what VLOS provided.
-    props = {
-        'id': zaak_obj.id, # Store the GUID from API as a property
-        'nummer': zaak_obj.nummer, # Use 'nummer' as the MERGE key
-        'onderwerp': zaak_obj.onderwerp,
-        'afgedaan': zaak_obj.afgedaan,
-        'volgnummer': zaak_obj.volgnummer,
-        'alias': zaak_obj.alias,
-        'gestart_op': str(zaak_obj.gestart_op) if zaak_obj.gestart_op else None
-    }
-    session.execute_write(merge_node,'Zaak','nummer',props) # MERGE on 'nummer'
-    # print(f"    ↳ Processing Zaak: {zaak_obj.nummer} (ID: {zaak_obj.id})")
+# Import interface system
+from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
 
 
-    if zaak_obj.soort:
-        session.execute_write(merge_rel,'Zaak','nummer',zaak_obj.nummer,
-                              'ZaakSoort','key',zaak_obj.soort.name,'HAS_SOORT')
-    if zaak_obj.kabinetsappreciatie:
-        session.execute_write(merge_rel,'Zaak','nummer',zaak_obj.nummer,
-                              'Kabinetsappreciatie','key',zaak_obj.kabinetsappreciatie.name,'HAS_KABINETSAPPRECIATIE')
+class ZaakLoaderRefactored(BaseLoader):
+    """Refactored loader for Zaken entities with full interface support"""
     
-    # Handle VervangenDoor
-    if zaak_obj.vervangen_door:
-        vd = zaak_obj.vervangen_door
-        # Recursively process the 'vervangen_door' Zaak if it's new
-        process_and_load_zaak(session, vd) # It will merge on its own 'nummer'
-        session.execute_write(merge_rel, 'Zaak', 'nummer', zaak_obj.nummer,
-                              'Zaak', 'nummer', vd.nummer, 'REPLACED_BY')
-
-    # Process other related items (Documenten, Agendapunten, Activiteiten, Besluiten, ZaakActors)
-    # This assumes they are expanded on the zaak_obj
-    for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_ZAAK.items():
-        if attr_name == 'vervangen_door': continue # Handled above
-
-        related_items = getattr(zaak_obj, attr_name, []) or []
-        if not isinstance(related_items, list): related_items = [related_items]
-
-        for related_item_obj in related_items:
-            if not related_item_obj: continue
+    def __init__(self):
+        super().__init__(
+            name="zaak_loader_refactored",
+            description="Refactored Zaken loader from TK API with related entities and checkpoint support"
+        )
+        self._capabilities = [
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.DATE_FILTERING,
+            LoaderCapability.SKIP_FUNCTIONALITY,
+            LoaderCapability.INCREMENTAL_LOADING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
+        ]
+    
+    def load(self, conn: Neo4jConnection, config: LoaderConfig, 
+             checkpoint_manager=None) -> LoaderResult:
+        """Main loading method implementing the interface"""
+        start_time = time.time()
+        result = LoaderResult(
+            success=False,
+            processed_count=0,
+            failed_count=0,
+            skipped_count=0,
+            total_items=0,
+            execution_time_seconds=0.0,
+            error_messages=[],
+            warnings=[]
+        )
+        
+        try:
+            # Validate configuration
+            validation_errors = self.validate_config(config)
+            if validation_errors:
+                result.error_messages.extend(validation_errors)
+                return result
             
-            related_item_key_val = getattr(related_item_obj, target_key_prop, None)
-            if related_item_key_val is None:
-                print(f"    ! Warning: Related item for '{attr_name}' in Zaak {zaak_obj.nummer} missing key '{target_key_prop}'.")
-                continue
+            # Use the decorated function for actual loading
+            load_result = load_zaken(
+                conn=conn,
+                batch_size=config.batch_size,
+                start_date_str=config.start_date or "2024-01-01"
+            )
+            
+            # For now, we'll mark as successful if no exceptions occurred
+            result.success = True
+            result.execution_time_seconds = time.time() - start_time
+            
+        except Exception as e:
+            result.error_messages.append(f"Loading failed: {str(e)}")
+            result.execution_time_seconds = time.time() - start_time
+        
+        return result
 
-            if target_label == 'Besluit':
-                if process_and_load_besluit(session, related_item_obj, related_zaak_nummer=zaak_obj.nummer):
-                    pass # Processed new besluit
-            elif target_label == 'Document':
-                # from .common_processors import process_and_load_document # If full processing needed
-                # process_and_load_document(session, related_item_obj)
-                session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val, 'titel': related_item_obj.titel or ''})
-            elif target_label == 'Agendapunt':
-                # from .agendapunt_loader import process_and_load_agendapunt
-                # process_and_load_agendapunt(session, related_item_obj)
-                session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val, 'onderwerp': related_item_obj.onderwerp or ''})
-            elif target_label == 'Activiteit':
-                # process_and_load_activiteit_from_zaak(session, related_item_obj)
-                session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val, 'onderwerp': related_item_obj.onderwerp or ''})
-            elif target_label == 'ZaakActor':
-                actor_props = {'id': related_item_obj.id, 'naam': related_item_obj.naam or ''}
-                session.execute_write(merge_node, target_label, 'id', actor_props)
-            else: # Default minimal node creation
-                 session.execute_write(merge_node,target_label,target_key_prop,{target_key_prop:related_item_key_val})
 
-            # Create the relationship from Zaak to the related item
-            session.execute_write(merge_rel, 'Zaak', 'nummer', zaak_obj.nummer,
-                                  target_label, target_key_prop, related_item_key_val, rel_type)
-    return True
+# Register the loader
+zaak_loader_refactored_instance = ZaakLoaderRefactored()
+loader_registry.register(zaak_loader_refactored_instance)
+
+
+# Import processor functions
+from .processors.zaak_loader_processor import process_and_load_zaak, setup_zaak_api_filter, restore_zaak_expand_params
 
 
 @checkpoint_zaak_loader(checkpoint_interval=25)
@@ -113,26 +102,9 @@ def load_zaken(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str 
     - Final progress reporting
     """
     api = TKApi()
-    start_datetime_obj = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-    odata_start_date_str = tkapi_util.datetime_to_odata(start_datetime_obj.replace(tzinfo=timezone.utc))
-
-    filter_obj = Zaak.create_filter()
-    filter_obj.add_filter_str(f"GestartOp ge {odata_start_date_str}")
+    filter_obj, original_zaak_expand_params = setup_zaak_api_filter(start_date_str)
     
-    # --- Manage expand_params ---
-    original_zaak_expand_params = list(Zaak.expand_params or [])
-    current_expand_params = list(original_zaak_expand_params)
-
-    if Dossier.type not in current_expand_params: # Dossier.type is 'Kamerstukdossier'
-        current_expand_params.append(Dossier.type)
-
-    Zaak.expand_params = current_expand_params
-    # ---
-
-    filter = Zaak.create_filter()
-    filter.add_filter_str(f"GestartOp ge {odata_start_date_str}") # Zaak has GestartOp
-    
-    zaken_api = api.get_zaken(filter=filter) # get_zaken is a method on TKApi, not get_items
+    zaken_api = api.get_zaken(filter=filter_obj)
     print(f"→ Fetched {len(zaken_api)} Zaken since {start_date_str} (with expanded relations)")
 
     # --- Restore expand_params ---

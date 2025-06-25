@@ -9,6 +9,8 @@ from tkapi.agendapunt import Agendapunt # For expand_params
 # DocumentActor is also a related type in Document.expand_params
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
+from core.config.constants import REL_MAP_DOC
+from core.config.tkapi_config import create_tkapi_with_timeout
 
 # Import processors for related entities
 from .common_processors import process_and_load_dossier, PROCESSED_DOSSIER_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
@@ -22,7 +24,73 @@ from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManag
 # Import the checkpoint decorator
 from core.checkpoint.checkpoint_decorator import checkpoint_loader
 
+# Import interface system
+from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
+
 # api = TKApi() # Not needed at module level
+
+
+class DocumentLoader(BaseLoader):
+    """Loader for Document entities with full interface support"""
+    
+    def __init__(self):
+        super().__init__(
+            name="document_loader",
+            description="Loads Documents from TK API with related entities and checkpoint support"
+        )
+        self._capabilities = [
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.DATE_FILTERING,
+            LoaderCapability.SKIP_FUNCTIONALITY,
+            LoaderCapability.INCREMENTAL_LOADING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
+        ]
+    
+    def load(self, conn: Neo4jConnection, config: LoaderConfig, 
+             checkpoint_manager: CheckpointManager = None) -> LoaderResult:
+        """Main loading method implementing the interface"""
+        start_time = time.time()
+        result = LoaderResult(
+            success=False,
+            processed_count=0,
+            failed_count=0,
+            skipped_count=0,
+            total_items=0,
+            execution_time_seconds=0.0,
+            error_messages=[],
+            warnings=[]
+        )
+        
+        try:
+            # Validate configuration
+            validation_errors = self.validate_config(config)
+            if validation_errors:
+                result.error_messages.extend(validation_errors)
+                return result
+            
+            # Use the decorated function for actual loading
+            load_result = load_documents(
+                conn=conn,
+                batch_size=config.batch_size,
+                start_date_str=config.start_date or "2024-01-01",
+                skip_count=config.skip_count
+            )
+            
+            # For now, we'll mark as successful if no exceptions occurred
+            result.success = True
+            result.execution_time_seconds = time.time() - start_time
+            
+        except Exception as e:
+            result.error_messages.append(f"Loading failed: {str(e)}")
+            result.execution_time_seconds = time.time() - start_time
+        
+        return result
+
+
+# Register the loader
+document_loader_instance = DocumentLoader()
+loader_registry.register(document_loader_instance)
+
 
 @checkpoint_loader(checkpoint_interval=25)
 def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", skip_count: int = 0, _checkpoint_context=None):
@@ -38,7 +106,12 @@ def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: 
     from tkapi.util import util as tkapi_util
     from datetime import timezone
     
-    api = TKApi()
+    # Use timeout-configured TKApi instance
+    api = create_tkapi_with_timeout(
+        connect_timeout=15.0,  # 15 seconds to establish connection
+        read_timeout=300.0,    # 5 minutes to read response
+        max_retries=3
+    )
     start_datetime_obj = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     odata_start_date_str = tkapi_util.datetime_to_odata(start_datetime_obj.replace(tzinfo=timezone.utc))
 
@@ -70,7 +143,7 @@ def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: 
                 'id': document_obj.id,
                 'titel': document_obj.titel or '',
                 'datum': str(document_obj.datum) if document_obj.datum else None,
-                'soort': document_obj.soort,
+                'soort': document_obj.soort.name if hasattr(document_obj.soort, 'name') else document_obj.soort,  # Handle both enum and string values
                 'onderwerp': document_obj.onderwerp,
                 'alias': document_obj.alias,
                 'volgnummer': document_obj.volgnummer
@@ -78,7 +151,7 @@ def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: 
             session.execute_write(merge_node, 'Document', 'id', props)
 
             # Process related items
-            for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_DOCUMENT.items():
+            for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_DOC.items():
                 related_items = getattr(document_obj, attr_name, []) or []
                 if not isinstance(related_items, list):
                     related_items = [related_items]
@@ -105,6 +178,29 @@ def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: 
                             target_key_prop: related_item_key_val, 
                             'onderwerp': related_item_obj.onderwerp or ''
                         })
+                    elif target_label == 'DocumentVersie':
+                        # Handle DocumentVersie with all relevant properties
+                        versie_props = {
+                            'id': related_item_key_val,
+                            'versienummer': getattr(related_item_obj, 'versienummer', None),
+                            'status': getattr(related_item_obj, 'status', None),
+                            'bestandsgrootte': getattr(related_item_obj, 'bestandsgrootte', None),
+                            'extensie': getattr(related_item_obj, 'extensie', None),
+                            'datum': str(getattr(related_item_obj, 'datum', None)) if getattr(related_item_obj, 'datum', None) else None,
+                            'verwijderd': getattr(related_item_obj, 'verwijderd', False),
+                            'externe_identifier': getattr(related_item_obj, 'externe_identifier', None)
+                        }
+                        session.execute_write(merge_node, target_label, target_key_prop, versie_props)
+                    elif target_label == 'DocumentActor':
+                        # Handle DocumentActor with relevant properties
+                        actor_props = {
+                            'id': related_item_key_val,
+                            'actor_naam': getattr(related_item_obj, 'actor_naam', None),
+                            'actor_fractie': getattr(related_item_obj, 'actor_fractie', None),
+                            'functie': getattr(related_item_obj, 'functie', None),
+                            'relatie': getattr(related_item_obj, 'relatie', None)
+                        }
+                        session.execute_write(merge_node, target_label, target_key_prop, actor_props)
                     else:
                         session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val})
 

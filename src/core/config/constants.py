@@ -12,7 +12,7 @@ REL_MAP_DOC = {
     'activiteiten':   ('Activiteit',     'HAS_ACTIVITEIT',      'id'),
     'actors':         ('DocumentActor',  'HAS_ACTOR',           'id'),
     'dossiers':       ('Dossier',        'HAS_DOSSIER',         'id'),
-    'versies':        ('DocumentVersie', 'HAS_VERSIE',          'nummer'),
+    'versies':        ('DocumentVersie', 'HAS_VERSIE',          'id'),
 }
 
 REL_MAP_ACTIVITEIT = {
@@ -49,3 +49,12 @@ REL_MAP_ACTIVITEIT_SELF = {
     'voortgezet_in':      ('Activiteit', 'CONTINUED_IN', 'id'),
     'voortgezet_vanuit':  ('Activiteit', 'CONTINUED_FROM', 'id')
 }
+
+# --- TKApi Timeout Configuration ---
+import os
+
+# Timeout settings for TKApi requests (in seconds)
+TKAPI_CONNECT_TIMEOUT = float(os.getenv('TKAPI_CONNECT_TIMEOUT', '15.0'))
+TKAPI_READ_TIMEOUT = float(os.getenv('TKAPI_READ_TIMEOUT', '300.0'))
+TKAPI_MAX_RETRIES = int(os.getenv('TKAPI_MAX_RETRIES', '3'))
+TKAPI_BACKOFF_FACTOR = float(os.getenv('TKAPI_BACKOFF_FACTOR', '0.5'))

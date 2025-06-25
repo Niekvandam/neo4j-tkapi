@@ -1,4 +1,5 @@
 import datetime
+import time
 from tkapi import TKApi
 from tkapi.vergadering import Vergadering, VergaderingFilter, VergaderingSoort # Ensure VergaderingFilter & Soort are imported
 from tkapi.verslag import Verslag
@@ -14,43 +15,95 @@ from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManag
 # Import the checkpoint decorator
 from core.checkpoint.checkpoint_decorator import checkpoint_loader
 
+# Import interface system
+from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
+
 # Timezone handling for creating API query filters
 LOCAL_TIMEZONE_OFFSET_HOURS_API = 2 # Example: CEST
 
-def process_and_load_vergadering(session, driver, vergadering_obj: Vergadering, process_xml=True): # Added process_xml flag
-    if not vergadering_obj or not vergadering_obj.id:
-        return False
+# Import processor functions
+from .processors.vergadering_processor import (
+    process_and_load_vergadering, 
+    process_single_vergadering, 
+    setup_vergadering_api_filter,
+    REL_MAP_VERGADERING
+)
 
-    props = {
-        'id': vergadering_obj.id, # This is the canonical API ID
-        'titel': vergadering_obj.titel,
-        'nummer': vergadering_obj.nummer, # This is VergaderingNummer
-        'zaal': vergadering_obj.zaal,
-        'soort': vergadering_obj.soort.name if vergadering_obj.soort else None,
-        'datum': str(vergadering_obj.datum) if vergadering_obj.datum else None, # API Datum field
-        'begin': str(vergadering_obj.begin) if vergadering_obj.begin else None, # API Aanvangstijd
-        'einde': str(vergadering_obj.einde) if vergadering_obj.einde else None,   # API Sluiting
-        'samenstelling': vergadering_obj.samenstelling,
-        'source': 'tkapi' # Mark as API sourced
-    }
-    session.execute_write(merge_node, 'Vergadering', 'id', props)
-    print(f"    ↳ Processed API Vergadering: {vergadering_obj.id} - {vergadering_obj.titel}")
 
-    # Process related Verslag from API
-    if vergadering_obj.verslag:
-        # process_and_load_verslag will create the :Verslag node from API data
-        # and link it to this Vergadering.
-        # It will also trigger the download and processing of the VLOS XML.
-        if process_xml and process_and_load_verslag(session, driver, vergadering_obj.verslag, 
-                                        related_vergadering_id=vergadering_obj.id,
-                                        canonical_api_vergadering_id_for_vlos=vergadering_obj.id): # Pass canonical ID
-            pass 
-        elif not process_xml: # If only processing API verslag metadata without XML
-             # Minimal Verslag node creation if not fully processed by process_and_load_verslag
-            session.execute_write(merge_node, 'Verslag', 'id', {'id': vergadering_obj.verslag.id, 'source': 'tkapi_placeholder'})
-            session.execute_write(merge_rel, 'Vergadering', 'id', vergadering_obj.id,
-                                  'Verslag', 'id', vergadering_obj.verslag.id, 'HAS_API_VERSLAG')
-    return True
+class VergaderingLoader(BaseLoader):
+    """Loader for Vergadering entities with full interface support"""
+    
+    def __init__(self):
+        super().__init__(
+            name="vergadering_loader",
+            description="Loads Vergaderingen from TK API with related entities and checkpoint support"
+        )
+        self._capabilities = [
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.DATE_FILTERING,
+            LoaderCapability.SKIP_FUNCTIONALITY,
+            LoaderCapability.INCREMENTAL_LOADING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
+        ]
+    
+    def validate_config(self, config: LoaderConfig) -> list[str]:
+        """Validate configuration specific to VergaderingLoader"""
+        errors = super().validate_config(config)
+        
+        # Add specific validation for Vergadering loader
+        if config.custom_params and 'process_xml' in config.custom_params:
+            if not isinstance(config.custom_params['process_xml'], bool):
+                errors.append("custom_params.process_xml must be a boolean")
+        
+        return errors
+    
+    def load(self, conn: Neo4jConnection, config: LoaderConfig, 
+             checkpoint_manager: CheckpointManager = None) -> LoaderResult:
+        """Main loading method implementing the interface"""
+        start_time = time.time()
+        result = LoaderResult(
+            success=False,
+            processed_count=0,
+            failed_count=0,
+            skipped_count=0,
+            total_items=0,
+            execution_time_seconds=0.0,
+            error_messages=[],
+            warnings=[]
+        )
+        
+        try:
+            # Validate configuration
+            validation_errors = self.validate_config(config)
+            if validation_errors:
+                result.error_messages.extend(validation_errors)
+                return result
+            
+            # Use the decorated function for actual loading
+            load_result = load_vergaderingen(
+                conn=conn,
+                batch_size=config.batch_size,
+                start_date_str=config.start_date or "2024-01-01",
+                skip_count=config.skip_count
+            )
+            
+            # For now, we'll mark as successful if no exceptions occurred
+            result.success = True
+            result.execution_time_seconds = time.time() - start_time
+            
+        except Exception as e:
+            result.error_messages.append(f"Loading failed: {str(e)}")
+            result.execution_time_seconds = time.time() - start_time
+        
+        return result
+
+
+# Register the loader
+vergadering_loader_instance = VergaderingLoader()
+loader_registry.register(vergadering_loader_instance)
+
+
+# Processor function moved to processors/vergadering_processor.py
 
 
 @checkpoint_loader(checkpoint_interval=25)
@@ -65,13 +118,8 @@ def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_s
     - Final progress reporting
     """
     api = TKApi()
-    start_datetime_obj = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-    odata_start_date_str = tkapi_util.datetime_to_odata(start_datetime_obj.replace(tzinfo=timezone.utc))
-
-    filter = Vergadering.create_filter()
-    filter.add_filter_str(f"Datum ge {odata_start_date_str}")
-    
-    vergaderingen_api = api.get_items(Vergadering, filter=filter)
+    filter_obj = setup_vergadering_api_filter(start_date_str)
+    vergaderingen_api = api.get_items(Vergadering, filter=filter_obj)
     print(f"→ Fetched {len(vergaderingen_api)} Vergaderingen since {start_date_str}")
 
     if not vergaderingen_api:
@@ -86,73 +134,19 @@ def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_s
         vergaderingen_api = vergaderingen_api[skip_count:]
         print(f"⏭️ Skipping first {skip_count} items. Processing {len(vergaderingen_api)} remaining items.")
 
-    def process_single_vergadering(vergadering_obj):
-        with conn.driver.session(database=conn.database) as session:
-            if not vergadering_obj or not vergadering_obj.id:
-                return
-
-            # Create Vergadering node
-            props = {
-                'id': vergadering_obj.id,
-                'nummer': vergadering_obj.nummer,
-                'titel': vergadering_obj.titel or '',
-                'datum': str(vergadering_obj.datum) if vergadering_obj.datum else None,
-                'aanvangstijd': str(vergadering_obj.aanvangstijd) if vergadering_obj.aanvangstijd else None,
-                'eindtijd': str(vergadering_obj.eindtijd) if vergadering_obj.eindtijd else None,
-                'status': vergadering_obj.status,
-                'soort': vergadering_obj.soort
-            }
-            session.execute_write(merge_node, 'Vergadering', 'id', props)
-
-            # Process related items
-            for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_VERGADERING.items():
-                related_items = getattr(vergadering_obj, attr_name, []) or []
-                if not isinstance(related_items, list):
-                    related_items = [related_items]
-
-                for related_item_obj in related_items:
-                    if not related_item_obj:
-                        continue
-                    
-                    related_item_key_val = getattr(related_item_obj, target_key_prop, None)
-                    if related_item_key_val is None:
-                        print(f"    ! Warning: Related item for '{attr_name}' in Vergadering {vergadering_obj.id} missing key '{target_key_prop}'.")
-                        continue
-
-                    if target_label == 'Zaak':
-                        if process_and_load_zaak(session, related_item_obj, related_entity_id=vergadering_obj.id, related_entity_type="Vergadering"):
-                            pass
-                    elif target_label == 'Activiteit':
-                        session.execute_write(merge_node, target_label, target_key_prop, {
-                            target_key_prop: related_item_key_val, 
-                            'onderwerp': related_item_obj.onderwerp or ''
-                        })
-                    elif target_label == 'Agendapunt':
-                        session.execute_write(merge_node, target_label, target_key_prop, {
-                            target_key_prop: related_item_key_val, 
-                            'onderwerp': related_item_obj.onderwerp or ''
-                        })
-                    elif target_label == 'Document':
-                        session.execute_write(merge_node, target_label, target_key_prop, {
-                            target_key_prop: related_item_key_val, 
-                            'titel': related_item_obj.titel or ''
-                        })
-                    else:
-                        session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val})
-
-                    session.execute_write(merge_rel, 'Vergadering', 'id', vergadering_obj.id,
-                                          target_label, target_key_prop, related_item_key_val, rel_type)
+    def process_vergadering_wrapper(vergadering_obj):
+        process_single_vergadering(conn, vergadering_obj)
 
     # Clear processed IDs at the beginning
     PROCESSED_ZAAK_IDS.clear()
 
     # Use the checkpoint context to process items automatically
     if _checkpoint_context:
-        _checkpoint_context.process_items(vergaderingen_api, process_single_vergadering)
+        _checkpoint_context.process_items(vergaderingen_api, process_vergadering_wrapper)
     else:
         # Fallback for when decorator is not used
         for vergadering_obj in vergaderingen_api:
-            process_single_vergadering(vergadering_obj)
+            process_vergadering_wrapper(vergadering_obj)
 
     print("✅ Loaded Vergaderingen and their related entities.")
 

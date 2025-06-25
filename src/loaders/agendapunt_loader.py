@@ -11,6 +11,7 @@ from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS, 
 from .vlos_verslag_loader import load_vlos_verslag
 from tkapi.util import util as tkapi_util
 from datetime import timezone
+import time
 
 # Import checkpoint functionality
 from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManager
@@ -18,10 +19,76 @@ from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManag
 # Import the checkpoint decorator
 from core.checkpoint.checkpoint_decorator import checkpoint_loader
 
+# Import interface system
+from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
+
 # from .common_processors import process_and_load_document # If documents linked here need full processing
 # from .common_processors import process_and_load_zaak # If zaken linked here need full processing
 
 # api = TKApi() # Not needed at module level
+
+
+class AgendapuntLoader(BaseLoader):
+    """Loader for Agendapunt entities with full interface support"""
+    
+    def __init__(self):
+        super().__init__(
+            name="agendapunt_loader",
+            description="Loads Agendapunten from TK API with related entities (DEPRECATED - use via Activiteiten)"
+        )
+        self._capabilities = [
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.DATE_FILTERING,
+            LoaderCapability.SKIP_FUNCTIONALITY,
+            LoaderCapability.INCREMENTAL_LOADING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
+        ]
+    
+    def load(self, conn: Neo4jConnection, config: LoaderConfig, 
+             checkpoint_manager: CheckpointManager = None) -> LoaderResult:
+        """Main loading method implementing the interface"""
+        start_time = time.time()
+        result = LoaderResult(
+            success=False,
+            processed_count=0,
+            failed_count=0,
+            skipped_count=0,
+            total_items=0,
+            execution_time_seconds=0.0,
+            error_messages=[],
+            warnings=["This loader is deprecated - Agendapunten should be processed through Activiteiten"]
+        )
+        
+        try:
+            # Validate configuration
+            validation_errors = self.validate_config(config)
+            if validation_errors:
+                result.error_messages.extend(validation_errors)
+                return result
+            
+            # Use the decorated function for actual loading
+            load_result = load_agendapunten(
+                conn=conn,
+                batch_size=config.batch_size,
+                start_date_str=config.start_date or "2024-01-01",
+                skip_count=config.skip_count
+            )
+            
+            # For now, we'll mark as successful if no exceptions occurred
+            result.success = True
+            result.execution_time_seconds = time.time() - start_time
+            
+        except Exception as e:
+            result.error_messages.append(f"Loading failed: {str(e)}")
+            result.execution_time_seconds = time.time() - start_time
+        
+        return result
+
+
+# Register the loader
+agendapunt_loader_instance = AgendapuntLoader()
+loader_registry.register(agendapunt_loader_instance)
+
 
 # New processor function for a single Agendapunt
 def process_and_load_agendapunt(session, ap_obj: Agendapunt, related_activiteit_id: str = None):

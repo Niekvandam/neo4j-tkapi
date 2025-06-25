@@ -1,7 +1,7 @@
 import json
 import os
 import datetime
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 from pathlib import Path
 
 class CheckpointManager:
@@ -302,75 +302,5 @@ class CheckpointManager:
         return ', '.join(summary_parts) if summary_parts else "default settings"
 
 
-class LoaderCheckpoint:
-    """
-    Helper class for individual loaders to manage their specific checkpoints.
-    """
-    
-    def __init__(self, checkpoint_manager: CheckpointManager, loader_name: str):
-        self.checkpoint_manager = checkpoint_manager
-        self.loader_name = loader_name
-        self.processed_ids = set()
-        self.current_batch = 0
-        self.total_items = 0
-        self.failed_items = []
-        
-        # Load existing progress if resuming
-        self._load_progress()
-    
-    def _load_progress(self):
-        """Load existing progress from checkpoint."""
-        progress = self.checkpoint_manager.get_loader_progress(self.loader_name)
-        if progress:
-            self.processed_ids = set(progress.get("processed_ids", []))
-            self.current_batch = progress.get("current_batch", 0)
-            self.total_items = progress.get("total_items", 0)
-            self.failed_items = progress.get("failed_items", [])
-            print(f"📂 Loaded {self.loader_name} progress: {len(self.processed_ids)} items processed, batch {self.current_batch}")
-    
-    def save_progress(self):
-        """Save current progress to checkpoint."""
-        progress_info = {
-            "processed_ids": list(self.processed_ids),
-            "current_batch": self.current_batch,
-            "total_items": self.total_items,
-            "failed_items": self.failed_items,
-            "processed_count": len(self.processed_ids),
-            "failure_count": len(self.failed_items)
-        }
-        
-        self.checkpoint_manager.save_loader_progress(self.loader_name, progress_info)
-    
-    def mark_processed(self, item_id: str):
-        """Mark an item as processed."""
-        self.processed_ids.add(item_id)
-    
-    def is_processed(self, item_id: str) -> bool:
-        """Check if an item has been processed."""
-        return item_id in self.processed_ids
-    
-    def mark_failed(self, item_id: str, error_message: str):
-        """Mark an item as failed."""
-        self.failed_items.append({
-            "item_id": item_id,
-            "error": error_message,
-            "timestamp": datetime.datetime.now().isoformat()
-        })
-    
-    def set_total_items(self, total: int):
-        """Set the total number of items to process."""
-        self.total_items = total
-    
-    def increment_batch(self):
-        """Increment the current batch number."""
-        self.current_batch += 1
-    
-    def get_progress_stats(self) -> Dict:
-        """Get current progress statistics."""
-        return {
-            "processed_count": len(self.processed_ids),
-            "total_items": self.total_items,
-            "current_batch": self.current_batch,
-            "failure_count": len(self.failed_items),
-            "completion_percentage": (len(self.processed_ids) / self.total_items * 100) if self.total_items > 0 else 0
-        } 
+# Import LoaderCheckpoint from separate module
+from .loader_checkpoint import LoaderCheckpoint 
