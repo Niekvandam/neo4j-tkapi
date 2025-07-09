@@ -59,6 +59,28 @@ def process_single_activiteit(session, activiteit_obj):
             if target_label == 'Zaak':
                 if process_and_load_zaak(session, related_item_obj, related_entity_id=activiteit_obj.id, related_entity_type="Activiteit"):
                     pass
+            elif target_label == 'Reservering':
+                # Store full Reservering metadata
+                res_props = {
+                    'id': related_item_obj.id,
+                    'nummer': related_item_obj.nummer,
+                    'activiteit_nummer': related_item_obj.activiteit_nummer,
+                    'status_code': related_item_obj.status_code.name if getattr(related_item_obj, 'status_code', None) else None,
+                    'status_naam': related_item_obj.status_naam.name if getattr(related_item_obj, 'status_naam', None) else None,
+                }
+                session.execute_write(merge_node, 'Reservering', 'id', res_props)
+
+                # Ensure linked Zaal is stored and linked
+                zaal_obj = getattr(related_item_obj, 'zaal', None)
+                if zaal_obj and zaal_obj.id:
+                    zaal_props = {
+                        'id': zaal_obj.id,
+                        'naam': zaal_obj.naam,
+                    }
+                    session.execute_write(merge_node, 'Zaal', 'id', zaal_props)
+                    session.execute_write(merge_rel, 'Reservering', 'id', related_item_obj.id,
+                                              'Zaal', 'id', zaal_obj.id, 'IN_ZAAL')
+                # Create relation from Activiteit to Reservering handled below
             elif target_label == 'Agendapunt':
                 # Process agendapunt fully since it belongs to this activiteit
                 if process_and_load_agendapunt(session, related_item_obj, related_activiteit_id=activiteit_obj.id):
@@ -126,6 +148,28 @@ def process_single_activiteit_threaded(activiteit_obj, conn: Neo4jConnection, ch
                         with _thread_lock:
                             if process_and_load_zaak(session, related_item_obj, related_entity_id=activiteit_obj.id, related_entity_type="Activiteit"):
                                 pass
+                    elif target_label == 'Reservering':
+                        # Store full Reservering metadata
+                        res_props = {
+                            'id': related_item_obj.id,
+                            'nummer': related_item_obj.nummer,
+                            'activiteit_nummer': related_item_obj.activiteit_nummer,
+                            'status_code': related_item_obj.status_code.name if getattr(related_item_obj, 'status_code', None) else None,
+                            'status_naam': related_item_obj.status_naam.name if getattr(related_item_obj, 'status_naam', None) else None,
+                        }
+                        session.execute_write(merge_node, 'Reservering', 'id', res_props)
+
+                        # Ensure linked Zaal is stored and linked
+                        zaal_obj = getattr(related_item_obj, 'zaal', None)
+                        if zaal_obj and zaal_obj.id:
+                            zaal_props = {
+                                'id': zaal_obj.id,
+                                'naam': zaal_obj.naam,
+                            }
+                            session.execute_write(merge_node, 'Zaal', 'id', zaal_props)
+                            session.execute_write(merge_rel, 'Reservering', 'id', related_item_obj.id,
+                                                      'Zaal', 'id', zaal_obj.id, 'IN_ZAAL')
+                        # Create relation from Activiteit to Reservering handled below
                     elif target_label == 'Agendapunt':
                         # Process agendapunt fully since it belongs to this activiteit
                         if process_and_load_agendapunt(session, related_item_obj, related_activiteit_id=activiteit_obj.id):

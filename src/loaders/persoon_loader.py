@@ -5,9 +5,18 @@ from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
 
 # Relationship map
-from core.config.constants import REL_MAP_PERSOON
+from core.config.constants import REL_MAP_PERSOON, REL_MAP_PERSOON_NEVENFUNCTIE
 
 from tkapi.fractie import FractieZetelPersoon
+from tkapi.persoon import (
+    PersoonContactinformatie,
+    PersoonGeschenk,
+    PersoonLoopbaan,
+    PersoonNevenfunctie,
+    PersoonNevenfunctieInkomsten,
+    PersoonOnderwijs,
+    PersoonReis,
+)
 
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
@@ -119,18 +128,90 @@ def load_personen(conn: Neo4jConnection, batch_size: int | None = None):
                     if rel_key_val is None:
                         continue
 
-                    # Basic properties for FractieZetelPersoon
+                    # Specialised props per related label
                     if target_label == 'FractieZetelPersoon':
-                        props_fzp = {
+                        props_rel = {
                             'id': rel_key_val,
                             'functie': getattr(rel_obj, 'functie', None),
                             'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
                             'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
                         }
-                        session.execute_write(merge_node, target_label, target_key_prop, props_fzp)
+                    elif target_label == 'PersoonContactinformatie':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'soort': getattr(rel_obj, 'soort', None).name if getattr(rel_obj, 'soort', None) else None,
+                            'waarde': getattr(rel_obj, 'waarde', None),
+                        }
+                    elif target_label == 'PersoonGeschenk':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'omschrijving': getattr(rel_obj, 'omschrijving', None),
+                            'datum': str(getattr(rel_obj, 'datum', None)) if getattr(rel_obj, 'datum', None) else None,
+                        }
+                    elif target_label == 'PersoonLoopbaan':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'functie': getattr(rel_obj, 'functie', None),
+                            'werkgever': getattr(rel_obj, 'werkgever', None),
+                            'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
+                        }
+                    elif target_label == 'PersoonOnderwijs':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'opleiding_nl': getattr(rel_obj, 'opleiding_nl', None),
+                            'instelling': getattr(rel_obj, 'instelling', None),
+                            'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
+                        }
+                    elif target_label == 'PersoonReis':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'doel': getattr(rel_obj, 'doel', None),
+                            'bestemming': getattr(rel_obj, 'bestemming', None),
+                            'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
+                            'betaald_door': getattr(rel_obj, 'betaald_door', None),
+                        }
+                    elif target_label == 'PersoonNevenfunctie':
+                        props_rel = {
+                            'id': rel_key_val,
+                            'omschrijving': getattr(rel_obj, 'omschrijving', None),
+                            'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
+                            'soort': getattr(rel_obj, 'soort', None),
+                            'toelichting': getattr(rel_obj, 'toelichting', None),
+                        }
                     else:
-                        session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: rel_key_val})
+                        props_rel = {target_key_prop: rel_key_val}
 
+                    session.execute_write(merge_node, target_label, target_key_prop, props_rel)
+
+                    # If PersoonNevenfunctie, process inkomsten nested
+                    if target_label == 'PersoonNevenfunctie':
+                        for inc_attr, (inc_label, inc_rel_type, inc_key_prop) in REL_MAP_PERSOON_NEVENFUNCTIE.items():
+                            inc_items = getattr(rel_obj, inc_attr, []) or []
+                            if not isinstance(inc_items, (list, tuple)):
+                                inc_items = [inc_items]
+                            for inc in inc_items:
+                                if not inc:
+                                    continue
+                                inc_key_val = getattr(inc, inc_key_prop, None)
+                                if inc_key_val is None:
+                                    continue
+                                inc_props = {
+                                    'id': inc_key_val,
+                                    'omschrijving': getattr(inc, 'omschrijving', None),
+                                    'datum': str(getattr(inc, 'datum', None)) if getattr(inc, 'datum', None) else None,
+                                }
+                                session.execute_write(merge_node, inc_label, inc_key_prop, inc_props)
+                                session.execute_write(
+                                    merge_rel,
+                                    target_label, target_key_prop, rel_key_val,
+                                    inc_label, inc_key_prop, inc_key_val,
+                                    inc_rel_type
+                                )
+ 
                     # Link Person -> related node
                     session.execute_write(
                         merge_rel,

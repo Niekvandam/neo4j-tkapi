@@ -148,16 +148,23 @@ def load_fracties(conn: Neo4jConnection, batch_size: int | None = None):
                         if fzp_key_val is None:
                             continue
 
-                        # Merge FractieZetelPersoon node with timing information
-                        fzp_props = {
-                            'id': fzp_key_val,
-                            'functie': getattr(fzp_obj, 'functie', None),
-                            'van': str(getattr(fzp_obj, 'van', None)) if getattr(fzp_obj, 'van', None) else None,
-                            'tot_en_met': str(getattr(fzp_obj, 'tot_en_met', None)) if getattr(fzp_obj, 'tot_en_met', None) else None,
-                        }
+                        if fzp_label.endswith('Vacature'):
+                            fzp_props = {
+                                'id': fzp_key_val,
+                                'functie': getattr(fzp_obj, 'functie', None).name if getattr(fzp_obj, 'functie', None) else None,
+                                'van': str(getattr(fzp_obj, 'van', None)) if getattr(fzp_obj, 'van', None) else None,
+                                'tot_en_met': str(getattr(fzp_obj, 'tot_en_met', None)) if getattr(fzp_obj, 'tot_en_met', None) else None,
+                            }
+                        else:
+                            fzp_props = {
+                                'id': fzp_key_val,
+                                'functie': getattr(fzp_obj, 'functie', None),
+                                'van': str(getattr(fzp_obj, 'van', None)) if getattr(fzp_obj, 'van', None) else None,
+                                'tot_en_met': str(getattr(fzp_obj, 'tot_en_met', None)) if getattr(fzp_obj, 'tot_en_met', None) else None,
+                            }
                         session.execute_write(merge_node, fzp_label, fzp_key_prop, fzp_props)
 
-                        # Link FractieZetel -> FractieZetelPersoon
+                        # Link FractieZetel -> vacancy or persoon node
                         session.execute_write(
                             merge_rel,
                             target_label, target_key_prop, related_key_val,
@@ -165,26 +172,28 @@ def load_fracties(conn: Neo4jConnection, batch_size: int | None = None):
                             fzp_rel_type
                         )
 
-                        # --------- Link FractieZetelPersoon to underlying Person ---------
-                        for fzp_attr, (p_label, p_rel_type, p_key_prop) in REL_MAP_FRACTIE_ZETEL_PERSOON.items():
-                            person_obj = getattr(fzp_obj, fzp_attr, None)
-                            if not person_obj:
-                                continue
-                            person_key_val = getattr(person_obj, p_key_prop, None)
-                            if person_key_val is None:
-                                continue
+                        # Only if it's a Persoon seat link to Person
+                        if fzp_label == 'FractieZetelPersoon':
+                            # --------- Link FractieZetelPersoon to underlying Person ---------
+                            for fzp_attr, (p_label, p_rel_type, p_key_prop) in REL_MAP_FRACTIE_ZETEL_PERSOON.items():
+                                person_obj = getattr(fzp_obj, fzp_attr, None)
+                                if not person_obj:
+                                    continue
+                                person_key_val = getattr(person_obj, p_key_prop, None)
+                                if person_key_val is None:
+                                    continue
 
-                            # Merge Person node (basic props, full data comes from persoon_loader)
-                            session.execute_write(merge_node, p_label, p_key_prop, {
-                                p_key_prop: person_key_val,
-                                'naam': getattr(person_obj, 'naam', None),
-                            })
+                                # Merge Person node (basic props, full data comes from persoon_loader)
+                                session.execute_write(merge_node, p_label, p_key_prop, {
+                                    p_key_prop: person_key_val,
+                                    'naam': getattr(person_obj, 'naam', None),
+                                })
 
-                            session.execute_write(
-                                merge_rel,
-                                fzp_label, fzp_key_prop, fzp_key_val,
-                                p_label, p_key_prop, person_key_val,
-                                p_rel_type
-                            )
+                                session.execute_write(
+                                    merge_rel,
+                                    fzp_label, fzp_key_prop, fzp_key_val,
+                                    p_label, p_key_prop, person_key_val,
+                                    p_rel_type
+                                )
 
     print("✅ Loaded Fracties.")

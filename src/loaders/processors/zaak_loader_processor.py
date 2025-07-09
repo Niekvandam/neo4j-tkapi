@@ -11,7 +11,7 @@ from tkapi.besluit import Besluit
 from tkapi.dossier import Dossier
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
-from core.config.constants import REL_MAP_ZAAK
+from core.config.constants import REL_MAP_ZAAK, REL_MAP_ZAAK_ACTOR
 from .common_processors import process_and_load_besluit, process_and_load_dossier
 from tkapi.util import util as tkapi_util
 from datetime import timezone
@@ -79,6 +79,23 @@ def process_and_load_zaak(session, zaak_obj: Zaak, related_entity_id: str = None
             elif target_label == 'ZaakActor':
                 actor_props = {'id': related_item_obj.id, 'naam': related_item_obj.naam or ''}
                 session.execute_write(merge_node, target_label, 'id', actor_props)
+
+                # Link ZaakActor to Persoon/Fractie/Commissie
+                for a_attr, (a_label, a_rel_type, a_key_prop) in REL_MAP_ZAAK_ACTOR.items():
+                    a_related = getattr(related_item_obj, a_attr, None)
+                    if not a_related:
+                        continue
+                    a_items = a_related if isinstance(a_related, list) else [a_related]
+                    for a_obj in a_items:
+                        if not a_obj:
+                            continue
+                        a_key_val = getattr(a_obj, a_key_prop, None)
+                        if a_key_val is None:
+                            continue
+                        # Merge target node minimally
+                        session.execute_write(merge_node, a_label, a_key_prop, {a_key_prop: a_key_val})
+                        session.execute_write(merge_rel, 'ZaakActor', 'id', related_item_obj.id,
+                                              a_label, a_key_prop, a_key_val, a_rel_type)
             else:
                 session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val})
 

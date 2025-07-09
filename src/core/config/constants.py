@@ -22,6 +22,8 @@ REL_MAP_ACTIVITEIT = {
     'agendapunten':   ('Agendapunt',      'HAS_AGENDAPUNT',      'id'),
     'actors':         ('ActiviteitActor', 'HAS_ACT_ACTOR',       'id'),
     'voortouwcommissies': ('Commissie',        'HAS_VOORTOUWCOMMISSIE', 'id'),
+    'reservering': ('Reservering', 'HAS_RESERVERING', 'id'),
+    'zaal':        ('Zaal',        'HAS_ZAAL',        'id'),
 }
 
 REL_MAP_ACTOR = {
@@ -65,11 +67,13 @@ REL_MAP_DOCUMENT_VERSIE = {
 
 REL_MAP_FRACTIE = {
     'zetels': ('FractieZetel', 'HAS_ZETEL', 'id'),
+    'aanvullende_gegevens': ('FractieAanvullendGegeven', 'HAS_AANVULLEND', 'id'),
 }
 
 REL_MAP_FRACTIE_ZETEL = {
     # Each zetel has at most one active FractieZetelPersoon record
     'fractie_zetel_persoon': ('FractieZetelPersoon', 'HAS_INCUMBENT', 'id'),
+    'fractie_zetel_vacature': ('FractieZetelVacature', 'HAS_VACANCY', 'id'),
 }
 
 # From FractieZetelPersoon to the underlying Person
@@ -78,7 +82,40 @@ REL_MAP_FRACTIE_ZETEL_PERSOON = {
 }
 
 REL_MAP_PERSOON = {
-    'fractieleden': ('FractieZetelPersoon', 'HAS_SEAT_ASSIGNMENT', 'id'),
+    'fractieleden':      ('FractieZetelPersoon',        'HAS_SEAT_ASSIGNMENT', 'id'),
+    'contact_informaties': ('PersoonContactinformatie',  'HAS_CONTACTINFO',     'id'),
+    'geschenken':        ('PersoonGeschenk',            'RECEIVED_GIFT',       'id'),
+    'loopbaan':          ('PersoonLoopbaan',            'HAS_CAREER',          'id'),
+    'nevenfuncties':     ('PersoonNevenfunctie',        'HAS_SIDEPOSITION',    'id'),
+    'onderwijs':         ('PersoonOnderwijs',           'HAS_EDUCATION',       'id'),
+    'reizen':            ('PersoonReis',                'HAS_TRAVEL',          'id'),
+}
+
+# Nested mapping for PersoonNevenfunctie → PersoonNevenfunctieInkomsten
+REL_MAP_PERSOON_NEVENFUNCTIE = {
+    'inkomsten': ('PersoonNevenfunctieInkomsten', 'HAS_INCOME', 'id'),
+}
+
+REL_MAP_COMMISSIE = {
+    'zetels': ('CommissieZetel', 'HAS_ZETEL', 'id'),
+    'contact_informaties': ('CommissieContactinformatie', 'HAS_CONTACTINFO', 'id'),
+}
+
+REL_MAP_COMMISSIE_ZETEL = {
+    'personen_vast': ('CommissieZetelVastPersoon', 'HAS_MEMBER', 'id'),
+    'personen_vervangend': ('CommissieZetelVervangerPersoon', 'HAS_TEMP_MEMBER', 'id'),
+    'vacatures_vast': ('CommissieZetelVastVacature', 'HAS_VACANCY', 'id'),
+    'vacatures_vervanger': ('CommissieZetelVervangerVacature', 'HAS_TEMP_VACANCY', 'id'),
+}
+
+REL_MAP_COMMISSIE_ZETEL_PERSOON = {
+    'persoon': ('Persoon', 'IS_PERSON', 'id'),
+}
+
+REL_MAP_ZAAK_ACTOR = {
+    'persoon':   ('Persoon',   'ACTED_AS_PERSOON',   'id'),
+    'fractie':   ('Fractie',   'ACTED_AS_FRACTIE',   'id'),
+    'commissie': ('Commissie', 'ACTED_AS_COMMISSIE', 'id'),
 }
 
 # --- TKApi Timeout Configuration ---
