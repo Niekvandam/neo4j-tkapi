@@ -68,7 +68,17 @@ REL_MAP_FRACTIE = {
 }
 
 REL_MAP_FRACTIE_ZETEL = {
-    'persoon': ('Persoon', 'OCCUPIED_BY', 'id'),
+    # Each zetel has at most one active FractieZetelPersoon record
+    'fractie_zetel_persoon': ('FractieZetelPersoon', 'HAS_INCUMBENT', 'id'),
+}
+
+# From FractieZetelPersoon to the underlying Person
+REL_MAP_FRACTIE_ZETEL_PERSOON = {
+    'persoon': ('Persoon', 'IS_PERSON', 'id'),
+}
+
+REL_MAP_PERSOON = {
+    'fractieleden': ('FractieZetelPersoon', 'HAS_SEAT_ASSIGNMENT', 'id'),
 }
 
 # --- TKApi Timeout Configuration ---

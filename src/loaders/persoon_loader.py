@@ -1,7 +1,13 @@
 from tkapi import TKApi
 from tkapi.persoon import Persoon
 from core.connection.neo4j_connection import Neo4jConnection
+# Helpers
 from utils.helpers import merge_node, merge_rel
+
+# Relationship map
+from core.config.constants import REL_MAP_PERSOON
+
+from tkapi.fractie import FractieZetelPersoon
 
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
@@ -19,7 +25,8 @@ class PersoonLoader(BaseLoader):
             description="Loads Personen from TK API"
         )
         self._capabilities = [
-            LoaderCapability.BATCH_PROCESSING
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
         ]
     
     def load(self, conn: Neo4jConnection, config: LoaderConfig, 
@@ -95,5 +102,40 @@ def load_personen(conn: Neo4jConnection, batch_size: int | None = None):
                 'overlijdensplaats': p.overlijdensplaats,
                 'titels': p.titels
             }
+            # Merge the Person node itself
             session.execute_write(merge_node, 'Persoon', 'id', props)
+
+            # ---------------- Process relationships (e.g. FractieZetelPersoon) ----------------
+            for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_PERSOON.items():
+                related_items = getattr(p, attr_name, []) or []
+
+                if not isinstance(related_items, (list, tuple)):
+                    related_items = [related_items]
+
+                for rel_obj in related_items:
+                    if not rel_obj:
+                        continue
+                    rel_key_val = getattr(rel_obj, target_key_prop, None)
+                    if rel_key_val is None:
+                        continue
+
+                    # Basic properties for FractieZetelPersoon
+                    if target_label == 'FractieZetelPersoon':
+                        props_fzp = {
+                            'id': rel_key_val,
+                            'functie': getattr(rel_obj, 'functie', None),
+                            'van': str(getattr(rel_obj, 'van', None)) if getattr(rel_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(rel_obj, 'tot_en_met', None)) if getattr(rel_obj, 'tot_en_met', None) else None,
+                        }
+                        session.execute_write(merge_node, target_label, target_key_prop, props_fzp)
+                    else:
+                        session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: rel_key_val})
+
+                    # Link Person -> related node
+                    session.execute_write(
+                        merge_rel,
+                        'Persoon', 'id', p.id,
+                        target_label, target_key_prop, rel_key_val,
+                        rel_type
+                    )
     print("✅ Loaded Personen.")

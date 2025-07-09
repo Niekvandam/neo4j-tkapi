@@ -5,9 +5,9 @@ from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
 
 # Relationship maps
-from core.config.constants import REL_MAP_FRACTIE, REL_MAP_FRACTIE_ZETEL
+from core.config.constants import REL_MAP_FRACTIE, REL_MAP_FRACTIE_ZETEL, REL_MAP_FRACTIE_ZETEL_PERSOON
 
-from tkapi.fractie import FractieZetel
+from tkapi.fractie import FractieZetel, FractieZetelPersoon
 from tkapi.persoon import Persoon
 
 # Import interface system
@@ -26,7 +26,8 @@ class FractieLoader(BaseLoader):
             description="Loads Fracties from TK API"
         )
         self._capabilities = [
-            LoaderCapability.BATCH_PROCESSING
+            LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.RELATIONSHIP_PROCESSING
         ]
     
     def load(self, conn: Neo4jConnection, config: LoaderConfig, 
@@ -101,6 +102,89 @@ def load_fracties(conn: Neo4jConnection, batch_size: int | None = None):
                 'organisatie': f.organisatie
             }
 
+            # Merge the Fractie node itself
             session.execute_write(merge_node, 'Fractie', 'id', props)
+
+            # ------------------------------------------------------------------
+            # Process related entities (currently only FractieZetel and its person)
+            # ------------------------------------------------------------------
+            for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_FRACTIE.items():
+                related_items = getattr(f, attr_name, []) or []
+
+                # Ensure list semantics
+                if not isinstance(related_items, (list, tuple)):
+                    related_items = [related_items]
+
+                for related_item in related_items:
+                    if not related_item:
+                        continue
+
+                    related_key_val = getattr(related_item, target_key_prop, None)
+                    if related_key_val is None:
+                        print(f"    ! Warning: Related item for '{attr_name}' in Fractie {f.id} missing key '{target_key_prop}'.")
+                        continue
+
+                    # Merge FractieZetel node with minimal props
+                    zetel_props = {
+                        'id': related_key_val,
+                        'gewicht': getattr(related_item, 'gewicht', None),
+                    }
+                    session.execute_write(merge_node, target_label, target_key_prop, zetel_props)
+
+                    # Link Fractie → FractieZetel
+                    session.execute_write(
+                        merge_rel,
+                        'Fractie', 'id', f.id,
+                        target_label, target_key_prop, related_key_val,
+                        rel_type
+                    )
+
+                    # ---------------- Process FractieZetelPersoon (incumbent) ----------------
+                    for zetel_attr, (fzp_label, fzp_rel_type, fzp_key_prop) in REL_MAP_FRACTIE_ZETEL.items():
+                        fzp_obj = getattr(related_item, zetel_attr, None)
+                        if not fzp_obj:
+                            continue
+                        fzp_key_val = getattr(fzp_obj, fzp_key_prop, None)
+                        if fzp_key_val is None:
+                            continue
+
+                        # Merge FractieZetelPersoon node with timing information
+                        fzp_props = {
+                            'id': fzp_key_val,
+                            'functie': getattr(fzp_obj, 'functie', None),
+                            'van': str(getattr(fzp_obj, 'van', None)) if getattr(fzp_obj, 'van', None) else None,
+                            'tot_en_met': str(getattr(fzp_obj, 'tot_en_met', None)) if getattr(fzp_obj, 'tot_en_met', None) else None,
+                        }
+                        session.execute_write(merge_node, fzp_label, fzp_key_prop, fzp_props)
+
+                        # Link FractieZetel -> FractieZetelPersoon
+                        session.execute_write(
+                            merge_rel,
+                            target_label, target_key_prop, related_key_val,
+                            fzp_label, fzp_key_prop, fzp_key_val,
+                            fzp_rel_type
+                        )
+
+                        # --------- Link FractieZetelPersoon to underlying Person ---------
+                        for fzp_attr, (p_label, p_rel_type, p_key_prop) in REL_MAP_FRACTIE_ZETEL_PERSOON.items():
+                            person_obj = getattr(fzp_obj, fzp_attr, None)
+                            if not person_obj:
+                                continue
+                            person_key_val = getattr(person_obj, p_key_prop, None)
+                            if person_key_val is None:
+                                continue
+
+                            # Merge Person node (basic props, full data comes from persoon_loader)
+                            session.execute_write(merge_node, p_label, p_key_prop, {
+                                p_key_prop: person_key_val,
+                                'naam': getattr(person_obj, 'naam', None),
+                            })
+
+                            session.execute_write(
+                                merge_rel,
+                                fzp_label, fzp_key_prop, fzp_key_val,
+                                p_label, p_key_prop, person_key_val,
+                                p_rel_type
+                            )
 
     print("✅ Loaded Fracties.")
