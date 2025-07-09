@@ -78,15 +78,17 @@ def get_candidate_api_activities(session, canonical_vergadering_node: Neo4jNode)
     """Fetch Activiteit nodes linked to the Vergadering from Neo4j"""
     query = """
     MATCH (verg:Vergadering {id: $vergadering_id})
-    OPTIONAL MATCH (verg)<-[:HAS_AGENDAPUNT]-(ap:Agendapunt)-[:BELONGS_TO_ACTIVITEIT]->(act_via_ap:Activiteit)
+    OPTIONAL MATCH (verg)-[:HAS_AGENDAPUNT]->(ap:Agendapunt)<-[:HAS_AGENDAPUNT]-(act_via_ap:Activiteit)
     WITH verg, collect(DISTINCT act_via_ap) AS activities_from_agendapunten
     OPTIONAL MATCH (act_by_time:Activiteit)
     WHERE verg.begin IS NOT NULL AND verg.einde IS NOT NULL
       AND act_by_time.begin >= verg.begin 
       AND act_by_time.einde <= verg.einde 
-    WITH activities_from_agendapunten + collect(DISTINCT act_by_time) AS all_acts_list
+    WITH activities_from_agendapunten, 
+         [act IN collect(DISTINCT act_by_time) WHERE act IS NOT NULL] AS activities_by_time
+    WITH [act IN activities_from_agendapunten WHERE act IS NOT NULL] + activities_by_time AS all_acts_list
     UNWIND all_acts_list AS act_node
-    RETURN DISTINCT act_node.id AS id, act_node.soort AS soort, act_node.onderwerp AS onderwerp,
+    RETURN DISTINCT act_node.id AS id, act_node.soort_api AS soort, act_node.onderwerp AS onderwerp,
            act_node.begin AS begin, act_node.einde AS einde
     """
     results = session.run(query, vergadering_id=canonical_vergadering_node['id'])
@@ -107,9 +109,9 @@ def calculate_vlos_activity_match_score(xml_activity_data: Dict[str, Any], api_a
     score = 0.0
     reasons = []
     
-    # Extract data from XML activity
-    title = xml_activity_data.get('title', '')
-    soort = xml_activity_data.get('soort', '')
+    # Extract data from XML activity (handle None values)
+    title = str(xml_activity_data.get('title', '') or '')
+    soort = str(xml_activity_data.get('soort', '') or '')
     start_time = xml_activity_data.get('start_time')
     end_time = xml_activity_data.get('end_time')
     
@@ -121,8 +123,8 @@ def calculate_vlos_activity_match_score(xml_activity_data: Dict[str, Any], api_a
     if time_score > 0:
         reasons.append(time_reason)
     
-    # Soort matching
-    api_soort = api_activity.get('soort', '').lower()
+    # Soort matching (handle None values) - soort_api is mapped to 'soort' in candidate dict
+    api_soort = str(api_activity.get('soort', '') or '').lower()
     xml_soort = soort.lower()
     if api_soort == xml_soort:
         score += SCORE_SOORT_EXACT_VLOS
@@ -134,8 +136,8 @@ def calculate_vlos_activity_match_score(xml_activity_data: Dict[str, Any], api_a
         score += SCORE_SOORT_PARTIAL_API_IN_XML_VLOS
         reasons.append(f"Soort PARTIAL match (API in XML): '{api_soort}' in '{xml_soort}'")
     
-    # Onderwerp/Title matching
-    api_onderwerp = api_activity.get('onderwerp', '').lower()
+    # Onderwerp/Title matching (handle None values)
+    api_onderwerp = str(api_activity.get('onderwerp', '') or '').lower()
     xml_title = title.lower()
     
     if api_onderwerp and xml_title:

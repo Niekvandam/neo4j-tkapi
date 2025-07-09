@@ -44,8 +44,8 @@ class PersoonLoader(BaseLoader):
                 result.error_messages.extend(validation_errors)
                 return result
             
-            # Use the existing function for actual loading
-            load_personen(conn, config.batch_size)
+            # Fetch all Personen (no artificial limit)
+            load_personen(conn)
             
             # For now, we'll mark as successful if no exceptions occurred
             result.success = True
@@ -63,9 +63,15 @@ persoon_loader_instance = PersoonLoader()
 loader_registry.register(persoon_loader_instance)
 
 
-def load_personen(conn: Neo4jConnection, batch_size: int = 50):
+def load_personen(conn: Neo4jConnection, batch_size: int | None = None):
+    """Load all Personen unless a positive batch_size is explicitly provided."""
     api = TKApi()
-    personen = api.get_items(Persoon, max_items=batch_size)
+
+    if batch_size is not None and batch_size > 0:
+        personen = api.get_items(Persoon, max_items=batch_size)
+    else:
+        # Fetch everything (no limit)
+        personen = api.get_items(Persoon)
     print(f"→ Fetched {len(personen)} Personen")
     with conn.driver.session(database=conn.database) as session:
         for i, p in enumerate(personen, 1):

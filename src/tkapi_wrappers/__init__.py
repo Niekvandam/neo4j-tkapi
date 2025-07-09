@@ -1,0 +1,1 @@
+"""Additional entity wrappers for TKApi that are missing in the upstream library (e.g. DocumentPublicatie).""" 

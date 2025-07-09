@@ -26,7 +26,7 @@ from loaders.toezegging_loader import load_toezeggingen
 from loaders.actor_loader import load_activiteit_actors # Assuming ActiviteitActor is fetched based on its own date or via Activiteit
 
 # Import common processors only to use utility like clear_processed_ids
-from loaders.common_processors import clear_processed_ids
+from loaders.processors.common_processors import clear_processed_ids
 
 import argparse
 import traceback
@@ -138,7 +138,7 @@ def main():
         
         # Seed enum nodes first
         print("\n🌱 Seeding enum nodes...")
-        seed_enum_nodes(conn.driver)
+        seed_enum_nodes(conn)
         
         # Execute all loaders
         print("\n🚀 Starting data loading sequence...")

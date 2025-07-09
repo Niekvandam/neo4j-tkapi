@@ -302,5 +302,64 @@ class CheckpointManager:
         return ', '.join(summary_parts) if summary_parts else "default settings"
 
 
-# Import LoaderCheckpoint from separate module
-from .loader_checkpoint import LoaderCheckpoint 
+class LoaderCheckpoint:
+    """
+    Helper class that provides a loader-specific interface to the CheckpointManager.
+    It encapsulates the progress for a single loader.
+    """
+    
+    def __init__(self, manager: CheckpointManager, loader_name: str):
+        self.manager = manager
+        self.loader_name = loader_name
+        
+        # Load initial progress from the manager
+        initial_progress = self.manager.get_loader_progress(loader_name) or {}
+        
+        # Initialize state
+        self.processed_ids = set(initial_progress.get('processed_ids', []))
+        self.failed_items = initial_progress.get('failed_items', [])
+        self.total_items = initial_progress.get('total_items', 0)
+    
+    def set_total_items(self, total: int):
+        """Set the total number of items to be processed."""
+        self.total_items = total
+    
+    def is_processed(self, item_id: str) -> bool:
+        """Check if an item has already been processed."""
+        return item_id in self.processed_ids
+    
+    def mark_processed(self, item_id: str):
+        """Mark an item as successfully processed."""
+        self.processed_ids.add(item_id)
+    
+    def mark_failed(self, item_id: str, error_message: str):
+        """Mark an item as failed."""
+        # Avoid storing excessive failure data
+        if len(self.failed_items) < 100:
+            self.failed_items.append({'item_id': item_id, 'error': error_message})
+    
+    def save_progress(self):
+        """Save the current progress state to disk via the CheckpointManager."""
+        if not self.manager.current_run_id:
+            return # Can't save progress without an active run
+
+        progress_info = {
+            'total_items': self.total_items,
+            'processed_count': len(self.processed_ids),
+            'failure_count': len(self.failed_items),
+            'processed_ids': list(self.processed_ids),
+            'failed_items': self.failed_items,
+        }
+        self.manager.save_loader_progress(self.loader_name, progress_info)
+    
+    def get_progress_stats(self) -> Dict:
+        """Get a dictionary with current progress statistics."""
+        processed_count = len(self.processed_ids)
+        completion_percentage = (processed_count / self.total_items * 100) if self.total_items > 0 else 0
+        
+        return {
+            'processed_count': processed_count,
+            'failure_count': len(self.failed_items),
+            'total_items': self.total_items,
+            'completion_percentage': completion_percentage,
+        }

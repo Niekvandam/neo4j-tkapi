@@ -129,7 +129,8 @@ def _fetch_zaken_from_api(start_date_str: str = "2024-01-01"):
     odata_start_date_str = tkapi_util.datetime_to_odata(start_datetime_obj.replace(tzinfo=timezone.utc))
 
     filter = Zaak.create_filter()
-    filter.add_filter_str(f"Datum ge {odata_start_date_str}")
+    # Zaak entities use 'GestartOp' field for start date filtering
+    filter.add_filter_str(f"GestartOp ge {odata_start_date_str}")
     
     zaken_api = api.get_items(Zaak, filter=filter)
     print(f"→ Fetched {len(zaken_api)} Zaken since {start_date_str}")
@@ -196,6 +197,26 @@ def load_zaken(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str 
             process_wrapper(zaak_obj)
 
     print("✅ Loaded Zaken and their related entities.")
+
+
+# -------------------------------------------------------------
+# Helper exposed for nested processors (to avoid circular import)
+# -------------------------------------------------------------
+
+
+def process_and_load_zaak(session, zaak_obj, related_entity_id: str | None = None, related_entity_type: str | None = None):
+    """Lightweight wrapper so other loaders can process a single Zaak.
+
+    It simply delegates to :pyfunc:`process_single_zaak` which already
+    creates/merges the node and its direct relationships.  The optional
+    *related_entity_id* / *related_entity_type* arguments are accepted for
+    signature compatibility but are not used at this point.
+    """
+    try:
+        return process_single_zaak(session, zaak_obj)
+    except Exception as exc:
+        print(f"    ❌ Failed to process nested Zaak {getattr(zaak_obj, 'nummer', 'UNKNOWN')}: {exc}")
+        return False
 
 
 def load_zaken_threaded(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", 

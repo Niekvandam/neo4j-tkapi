@@ -13,8 +13,8 @@ from core.config.constants import REL_MAP_ZAAK
 import time
 
 # Import processors for related entities that might need full processing
-from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS
-from .common_processors import process_and_load_dossier, PROCESSED_DOSSIER_IDS
+from .processors.common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS
+from .processors.common_processors import process_and_load_dossier, PROCESSED_DOSSIER_IDS
 from tkapi.util import util as tkapi_util
 from datetime import timezone
 

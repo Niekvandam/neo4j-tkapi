@@ -5,7 +5,7 @@ from tkapi.vergadering import Vergadering, VergaderingFilter, VergaderingSoort #
 from tkapi.verslag import Verslag
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
-from .common_processors import process_and_load_verslag, PROCESSED_VERSLAG_IDS, download_verslag_xml, process_and_load_zaak, PROCESSED_ZAAK_IDS
+from .processors.common_processors import process_and_load_verslag, PROCESSED_VERSLAG_IDS, download_verslag_xml, process_and_load_zaak, PROCESSED_ZAAK_IDS
 from tkapi.util import util as tkapi_util
 from datetime import timezone, timedelta
 
@@ -135,7 +135,8 @@ def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_s
         print(f"⏭️ Skipping first {skip_count} items. Processing {len(vergaderingen_api)} remaining items.")
 
     def process_vergadering_wrapper(vergadering_obj):
-        process_single_vergadering(conn, vergadering_obj)
+        with conn.driver.session(database=conn.database) as session:
+            process_and_load_vergadering(session, conn.driver, vergadering_obj, process_xml=True)
 
     # Clear processed IDs at the beginning
     PROCESSED_ZAAK_IDS.clear()

@@ -4,7 +4,7 @@ Zaak processing logic extracted from zaak_loader.py
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
 from core.config.constants import REL_MAP_ZAAK
-from .common_processors import process_and_load_document, PROCESSED_DOCUMENT_IDS
+from loaders.processors.common_processors import process_and_load_document, process_and_load_zaak, PROCESSED_DOCUMENT_IDS
 import threading
 
 # Thread-safe lock for shared resources
@@ -27,10 +27,11 @@ def process_single_zaak(session, zaak_obj):
         'nummer': zaak_obj.nummer,
         'onderwerp': zaak_obj.onderwerp or '',
         'soort': zaak_obj.soort,
-        'datum': str(zaak_obj.datum) if zaak_obj.datum else None,
+        # Use 'gestart_op' (start date) since Zaak objects have no 'datum' attribute
+        'datum': str(getattr(zaak_obj, 'gestart_op', None)) if getattr(zaak_obj, 'gestart_op', None) else None,
         'afgedaan': zaak_obj.afgedaan,
-        'status': zaak_obj.status,
-        'kamerstukdossier': zaak_obj.kamerstukdossier,
+        'status': getattr(zaak_obj, 'status', None),
+        'dossier_id': zaak_obj.dossier.id if getattr(zaak_obj, 'dossier', None) else None,
         'source': 'tkapi'
     }
     session.execute_write(merge_node, 'Zaak', 'nummer', props)
@@ -85,10 +86,11 @@ def process_single_zaak_threaded(zaak_obj, conn: Neo4jConnection, checkpoint_con
                 'nummer': zaak_obj.nummer,
                 'onderwerp': zaak_obj.onderwerp or '',
                 'soort': zaak_obj.soort,
-                'datum': str(zaak_obj.datum) if zaak_obj.datum else None,
+                # Use 'gestart_op' (start date) since Zaak objects have no 'datum' attribute
+                'datum': str(getattr(zaak_obj, 'gestart_op', None)) if getattr(zaak_obj, 'gestart_op', None) else None,
                 'afgedaan': zaak_obj.afgedaan,
-                'status': zaak_obj.status,
-                'kamerstukdossier': zaak_obj.kamerstukdossier,
+                'status': getattr(zaak_obj, 'status', None),
+                'dossier_id': zaak_obj.dossier.id if getattr(zaak_obj, 'dossier', None) else None,
                 'source': 'tkapi'
             }
             session.execute_write(merge_node, 'Zaak', 'nummer', props)

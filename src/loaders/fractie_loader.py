@@ -1,7 +1,14 @@
 from tkapi import TKApi
 from tkapi.fractie import Fractie
 from core.connection.neo4j_connection import Neo4jConnection
+# Helpers
 from utils.helpers import merge_node, merge_rel
+
+# Relationship maps
+from core.config.constants import REL_MAP_FRACTIE, REL_MAP_FRACTIE_ZETEL
+
+from tkapi.fractie import FractieZetel
+from tkapi.persoon import Persoon
 
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
@@ -44,8 +51,8 @@ class FractieLoader(BaseLoader):
                 result.error_messages.extend(validation_errors)
                 return result
             
-            # Use the existing function for actual loading
-            load_fracties(conn, config.batch_size)
+            # Fetch all Fracties (no artificial limit)
+            load_fracties(conn)
             
             # For now, we'll mark as successful if no exceptions occurred
             result.success = True
@@ -63,9 +70,14 @@ fractie_loader_instance = FractieLoader()
 loader_registry.register(fractie_loader_instance)
 
 
-def load_fracties(conn: Neo4jConnection, batch_size: int = 50):
+def load_fracties(conn: Neo4jConnection, batch_size: int | None = None):
+    """Load all Fracties unless a positive batch_size is explicitly provided."""
     api = TKApi()
-    fracties = api.get_items(Fractie, max_items=batch_size)
+
+    if batch_size is not None and batch_size > 0:
+        fracties = api.get_items(Fractie, max_items=batch_size)
+    else:
+        fracties = api.get_items(Fractie)
     print(f"→ Fetched {len(fracties)} Fracties")
 
     with conn.driver.session(database=conn.database) as session:

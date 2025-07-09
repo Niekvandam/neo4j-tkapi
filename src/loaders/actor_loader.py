@@ -66,11 +66,11 @@ actor_loader_instance = ActorLoader()
 loader_registry.register(actor_loader_instance)
 
 
-def load_activiteit_actors(conn: Neo4jConnection, batch_size: int = 50):
+def load_activiteit_actors(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01"):
     api = TKApi()
     ActiviteitActor.expand_params = ['Activiteit','Persoon','Fractie','Commissie']
     filter = ActiviteitActor.create_filter()
-    filter.add_filter_str("Datum ge 2024-01-01")
+    filter.add_filter_str(f"Datum ge {start_date_str}")
     actors = api.get_items(ActiviteitActor, filter=filter)
     print(f"→ Fetched {len(actors)} ActiviteitActors")
     with conn.driver.session(database=conn.database) as session:

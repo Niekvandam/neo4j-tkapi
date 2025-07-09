@@ -9,11 +9,15 @@ from tkapi.agendapunt import Agendapunt # For expand_params
 # DocumentActor is also a related type in Document.expand_params
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
-from core.config.constants import REL_MAP_DOC
+# Relationship maps
+from core.config.constants import REL_MAP_DOC, REL_MAP_DOCUMENT_VERSIE
+
+# Publication wrappers (not part of upstream tkapi)
+from tkapi_wrappers.document_publicatie import DocumentPublicatie, DocumentPublicatieMetadata
 from core.config.tkapi_config import create_tkapi_with_timeout
 
 # Import processors for related entities
-from .common_processors import process_and_load_dossier, PROCESSED_DOSSIER_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
+from .processors.common_processors import process_and_load_dossier, PROCESSED_DOSSIER_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
 # from .common_processors import process_and_load_zaak, PROCESSED_ZAAK_IDS # If Zaken from here need full processing
 # from .agendapunt_loader import process_and_load_agendapunt # If Agendapunten from here need full processing
 # from .activiteit_loader import process_and_load_activiteit_from_doc # You'd need a specific processor
@@ -26,6 +30,9 @@ from core.checkpoint.checkpoint_decorator import checkpoint_loader
 
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
+
+# Processor for DocumentActor relations
+from .processors.document_actor_processor import process_single_document_actor
 
 # api = TKApi() # Not needed at module level
 
@@ -93,7 +100,7 @@ loader_registry.register(document_loader_instance)
 
 
 @checkpoint_loader(checkpoint_interval=25)
-def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", skip_count: int = 0, _checkpoint_context=None):
+def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", skip_count: int = 0, overwrite: bool = False, _checkpoint_context=None):
     """
     Load Documents with automatic checkpoint support using decorator.
     
@@ -191,16 +198,47 @@ def load_documents(conn: Neo4jConnection, batch_size: int = 50, start_date_str: 
                             'externe_identifier': getattr(related_item_obj, 'externe_identifier', None)
                         }
                         session.execute_write(merge_node, target_label, target_key_prop, versie_props)
+
+                        # ------------------------------------------------------------------
+                        # Process DocumentPublicatie and DocumentPublicatieMetadata entities
+                        # ------------------------------------------------------------------
+                        for pub_attr, (pub_label, pub_rel_type, pub_key_prop) in REL_MAP_DOCUMENT_VERSIE.items():
+                            pub_items = getattr(related_item_obj, pub_attr, []) or []
+
+                            # Ensure list semantics
+                            if not isinstance(pub_items, (list, tuple)):
+                                pub_items = [pub_items]
+
+                            for pub_item in pub_items:
+                                if not pub_item:
+                                    continue
+
+                                pub_key_val = getattr(pub_item, pub_key_prop, None)
+                                if pub_key_val is None:
+                                    print(f"        ! Warning: Publication item for '{pub_attr}' in DocumentVersie {related_item_key_val} missing key '{pub_key_prop}'.")
+                                    continue
+
+                                # Generic property map – store everything useful that is easily available
+                                pub_props = {
+                                    'id': pub_key_val,
+                                    'identifier': getattr(pub_item, 'identifier', None),
+                                    'document_type': getattr(pub_item, 'document_type', None),
+                                    'file_name': getattr(pub_item, 'file_name', None),
+                                    'url': getattr(pub_item, 'url', None),
+                                    'content_length': getattr(pub_item, 'content_length', None),
+                                    'content_type': getattr(pub_item, 'content_type', None),
+                                    'publicatie_datum': str(getattr(pub_item, 'publicatie_datum', None)) if getattr(pub_item, 'publicatie_datum', None) else None,
+                                }
+
+                                session.execute_write(merge_node, pub_label, pub_key_prop, pub_props)
+                                session.execute_write(
+                                    merge_rel,
+                                    'DocumentVersie', 'id', related_item_key_val,
+                                    pub_label, pub_key_prop, pub_key_val,
+                                    pub_rel_type
+                                )
                     elif target_label == 'DocumentActor':
-                        # Handle DocumentActor with relevant properties
-                        actor_props = {
-                            'id': related_item_key_val,
-                            'actor_naam': getattr(related_item_obj, 'actor_naam', None),
-                            'actor_fractie': getattr(related_item_obj, 'actor_fractie', None),
-                            'functie': getattr(related_item_obj, 'functie', None),
-                            'relatie': getattr(related_item_obj, 'relatie', None)
-                        }
-                        session.execute_write(merge_node, target_label, target_key_prop, actor_props)
+                        process_single_document_actor(session, related_item_obj, document_obj.id)
                     else:
                         session.execute_write(merge_node, target_label, target_key_prop, {target_key_prop: related_item_key_val})
 

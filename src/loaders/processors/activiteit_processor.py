@@ -30,10 +30,13 @@ def process_single_activiteit(session, activiteit_obj):
         'onderwerp': activiteit_obj.onderwerp,
         'soort': activiteit_obj.soort.name if hasattr(activiteit_obj.soort, 'name') else activiteit_obj.soort,
         'datum': str(activiteit_obj.datum) if activiteit_obj.datum else None,
-        'aanvangstijd': str(activiteit_obj.aanvangstijd) if activiteit_obj.aanvangstijd else None,
-        'eindtijd': str(activiteit_obj.eindtijd) if activiteit_obj.eindtijd else None,
-        'geplande_datum': str(activiteit_obj.geplande_datum) if activiteit_obj.geplande_datum else None,
-        'voortouwcommissie': activiteit_obj.voortouwcommissie,
+        'begin': str(activiteit_obj.begin) if activiteit_obj.begin else None,
+        'einde': str(activiteit_obj.einde) if activiteit_obj.einde else None,
+        # Some activiteiten do not expose 'geplande_datum'; use getattr to avoid AttributeError
+        'geplande_datum': str(getattr(activiteit_obj, 'geplande_datum', None)) if getattr(activiteit_obj, 'geplande_datum', None) else None,
+        'datum_soort': activiteit_obj.datum_soort.name if getattr(activiteit_obj, 'datum_soort', None) else None,
+        'vergaderjaar': activiteit_obj.vergaderjaar,
+        # 'voortouwcommissies' are handled as relationships below
         'status': activiteit_obj.status.name if hasattr(activiteit_obj.status, 'name') else activiteit_obj.status
     }
     session.execute_write(merge_node, 'Activiteit', 'id', props)
@@ -92,13 +95,14 @@ def process_single_activiteit_threaded(activiteit_obj, conn: Neo4jConnection, ch
                 'id': activiteit_obj.id,
                 'nummer': activiteit_obj.nummer,
                 'onderwerp': activiteit_obj.onderwerp,
-                'soort': activiteit_obj.soort,
+                'soort': activiteit_obj.soort.name if hasattr(activiteit_obj.soort, 'name') else str(activiteit_obj.soort),
                 'datum': str(activiteit_obj.datum) if activiteit_obj.datum else None,
-                'aanvangstijd': str(activiteit_obj.aanvangstijd) if activiteit_obj.aanvangstijd else None,
-                'eindtijd': str(activiteit_obj.eindtijd) if activiteit_obj.eindtijd else None,
-                'geplande_datum': str(activiteit_obj.geplande_datum) if activiteit_obj.geplande_datum else None,
-                'voortouwcommissie': activiteit_obj.voortouwcommissie,
-                'status': activiteit_obj.status
+                'begin': str(activiteit_obj.begin) if activiteit_obj.begin else None,
+                'einde': str(activiteit_obj.einde) if activiteit_obj.einde else None,
+                'geplande_datum': str(getattr(activiteit_obj, 'geplande_datum', None)) if getattr(activiteit_obj, 'geplande_datum', None) else None,
+                'datum_soort': activiteit_obj.datum_soort.name if getattr(activiteit_obj, 'datum_soort', None) else None,
+                'vergaderjaar': activiteit_obj.vergaderjaar,
+                'status': activiteit_obj.status.name if hasattr(activiteit_obj.status, 'name') else str(activiteit_obj.status)
             }
             session.execute_write(merge_node, 'Activiteit', 'id', props)
 

@@ -7,7 +7,7 @@ from tkapi.activiteit import Activiteit # For expand_params
 from tkapi.zaak import Zaak # For expand_params
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
-from .common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
+from .processors.common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
 from .vlos_verslag_loader import load_vlos_verslag
 from tkapi.util import util as tkapi_util
 from datetime import timezone
@@ -117,11 +117,19 @@ def process_and_load_agendapunt(session, ap_obj: Agendapunt, related_activiteit_
                               'Activiteit', 'id', ap_obj.activiteit.id, 'BELONGS_TO_ACTIVITEIT')
 
     # Process related Besluit
-    if ap_obj.besluit: # Assuming ap_obj.besluit is an expanded Besluit object
+    if ap_obj.besluit:  # Assuming ap_obj.besluit is an expanded Besluit object
+        # First ensure the Besluit (and its own relationships) are processed
         if process_and_load_besluit(session, ap_obj.besluit, related_agendapunt_id=ap_obj.id):
-            pass # Processed new besluit
-        session.execute_write(merge_rel, 'Agendapunt', 'id', ap_obj.id,
-                              'Besluit', 'id', ap_obj.besluit.id, 'HAS_BESLUIT')
+            pass
+
+        # After both edges below exist, add convenience shortcut Besluit → Activiteit
+        if ap_obj.activiteit:
+            session.execute_write(
+                merge_rel,
+                'Besluit', 'id', ap_obj.besluit.id,
+                'Activiteit', 'id', ap_obj.activiteit.id,
+                'BELONGS_TO_ACTIVITEIT'
+            )
 
     # Process related Documenten
     for doc_obj in ap_obj.documenten: # Assuming ap_obj.documenten contains expanded Document objects

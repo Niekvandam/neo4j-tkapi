@@ -66,10 +66,11 @@ def process_single_vergadering(conn, vergadering_obj):
             'nummer': vergadering_obj.nummer,
             'titel': vergadering_obj.titel or '',
             'datum': str(vergadering_obj.datum) if vergadering_obj.datum else None,
-            'aanvangstijd': str(vergadering_obj.aanvangstijd) if vergadering_obj.aanvangstijd else None,
-            'eindtijd': str(vergadering_obj.eindtijd) if vergadering_obj.eindtijd else None,
-            'status': vergadering_obj.status,
-            'soort': vergadering_obj.soort
+            'begin': str(vergadering_obj.begin) if vergadering_obj.begin else None,
+            'einde': str(vergadering_obj.einde) if vergadering_obj.einde else None,
+            'zaal': vergadering_obj.zaal,
+            'soort': vergadering_obj.soort.name if vergadering_obj.soort else None,
+            'samenstelling': vergadering_obj.samenstelling
         }
         session.execute_write(merge_node, 'Vergadering', 'id', props)
 

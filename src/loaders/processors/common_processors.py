@@ -8,7 +8,7 @@ from tkapi.fractie import Fractie
 from tkapi.agendapunt import Agendapunt
 from tkapi.zaak import Zaak
 from utils.helpers import merge_node, merge_rel
-from .vlos_verslag_loader import load_vlos_verslag # Ensure this is at the top of common_processor.py
+from loaders.vlos_verslag_loader import load_vlos_verslag # Ensure this is at the top of common_processor.py
 import requests
 import concurrent.futures # For verslag XML download
 from typing import Optional
@@ -19,6 +19,7 @@ PROCESSED_BESLUIT_IDS = set()
 PROCESSED_STEMMING_IDS = set()
 PROCESSED_VERSLAG_IDS = set()
 PROCESSED_ZAAK_IDS = set()  # For Zaken processed as nested entities
+PROCESSED_DOCUMENT_IDS = set()
 
 # --- Helper to download XML for Verslag ---
 def download_verslag_xml(verslag_id):
@@ -72,19 +73,25 @@ def process_and_load_besluit(session, besluit_obj: Besluit, related_agendapunt_i
     # However, if Besluit itself has expanded relationships like Agendapunt or Zaak, handle them here.
     # From tkapi.besluit.Besluit, it can have 'zaken' and 'agendapunt' as properties.
 
-    if besluit_obj.agendapunt and besluit_obj.agendapunt.id != related_agendapunt_id: # Avoid circular if called from agendapunt
-        # This Agendapunt might not be date-filtered, so process it if new
-        from .agendapunt_loader import process_and_load_agendapunt # Careful with circular imports
-        if process_and_load_agendapunt(session, besluit_obj.agendapunt):
-             pass # Processed new Agendapunt
-        session.execute_write(merge_rel, 'Besluit', 'id', besluit_obj.id,
-                              'Agendapunt', 'id', besluit_obj.agendapunt.id, 'FROM_AGENDAPUNT')
+    if besluit_obj.agendapunt:  # Always (re)link to its Agendapunt, avoid circular re-processing
+        # Process Agendapunt if we did not arrive here FROM that same Agendapunt to prevent recursion
+        if besluit_obj.agendapunt.id != related_agendapunt_id:
+            from .agendapunt_loader import process_and_load_agendapunt  # circular-import safe
+            if process_and_load_agendapunt(session, besluit_obj.agendapunt):
+                pass
 
+        # Canonical forward edge: Besluit -> Agendapunt
+        session.execute_write(
+            merge_rel,
+            'Besluit', 'id', besluit_obj.id,
+            'Agendapunt', 'id', besluit_obj.agendapunt.id,
+            'BELONGS_TO_AGENDAPUNT'
+        )
 
     for zaak_obj in besluit_obj.zaken: # Assuming besluit_obj.zaken is expanded
         if zaak_obj.nummer != related_zaak_nummer: # Avoid circular if called from zaak
             # This Zaak might not be date-filtered, so process it if new
-            from .zaak_loader import process_and_load_zaak # Careful with circular imports
+            from ..zaak_loader import process_and_load_zaak  # corrected import path
             if process_and_load_zaak(session, zaak_obj):
                 pass # Processed new Zaak
             session.execute_write(merge_rel, 'Besluit', 'id', besluit_obj.id,
@@ -211,14 +218,32 @@ def process_and_load_zaak(session, zaak_obj, related_entity_id: str = None, rela
     if not zaak_obj or not zaak_obj.nummer or zaak_obj.nummer in PROCESSED_ZAAK_IDS:
         return False
     
-    # Import here to avoid circular imports
-    from .zaak_loader import process_and_load_zaak as _process_zaak
+    # Use parent package relative import (loaders.zaak_loader)
+    from ..zaak_loader import process_and_load_zaak as _process_zaak
     result = _process_zaak(session, zaak_obj, related_entity_id, related_entity_type)
     
     if result:
         PROCESSED_ZAAK_IDS.add(zaak_obj.nummer)
     
     return result
+
+def process_and_load_document(session, doc_obj, related_entity_id: str = None, related_entity_type: str = None):
+    """
+    Process and load a Document object, intended for nested calls.
+    This is a shallow processor and does not handle the document's own relationships.
+    """
+    if not doc_obj or not doc_obj.id or doc_obj.id in PROCESSED_DOCUMENT_IDS:
+        return False
+    
+    props = {
+        'id': doc_obj.id,
+        'titel': doc_obj.titel or '',
+        'datum': str(doc_obj.datum) if doc_obj.datum else None,
+        'soort': doc_obj.soort.name if hasattr(doc_obj.soort, 'name') else doc_obj.soort
+    }
+    session.execute_write(merge_node, 'Document', 'id', props)
+    PROCESSED_DOCUMENT_IDS.add(doc_obj.id)
+    return True
 
 
 def clear_processed_ids():
@@ -229,3 +254,4 @@ def clear_processed_ids():
     PROCESSED_VERSLAG_IDS.clear()
     PROCESSED_ZAAK_IDS.clear()
     print("🧹 Cleared processed ID sets.")
+

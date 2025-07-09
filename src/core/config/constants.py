@@ -5,6 +5,7 @@ REL_MAP_ZAAK = {
     'besluiten':      ('Besluit',        'HAS_BESLUIT',         'id'),
     'actors':         ('ZaakActor',      'HAS_ACTOR',           'id'),
     'vervangen_door': ('Zaak',           'REPLACED_BY',         'nummer'),
+    'dossier':        ('Dossier',        'HAS_DOSSIER',        'id'),
 }
 
 REL_MAP_DOC = {
@@ -20,6 +21,7 @@ REL_MAP_ACTIVITEIT = {
     'zaken':          ('Zaak',            'PART_OF_ZAAK',        'nummer'),
     'agendapunten':   ('Agendapunt',      'HAS_AGENDAPUNT',      'id'),
     'actors':         ('ActiviteitActor', 'HAS_ACT_ACTOR',       'id'),
+    'voortouwcommissies': ('Commissie',        'HAS_VOORTOUWCOMMISSIE', 'id'),
 }
 
 REL_MAP_ACTOR = {
@@ -40,7 +42,7 @@ REL_MAP_TOEZEGGING = {
 REL_MAP_BESLUIT = {
     'stemmingen': ('Stemming', 'HAS_STEMMING', 'id'),
     'zaken':      ('Zaak',     'ABOUT_ZAAK',    'nummer'),
-    'agendapunt': ('Agendapunt','FROM_AGENDAPUNT','id')  
+    'agendapunt': ('Agendapunt','BELONGS_TO_AGENDAPUNT','id')
 }
 
 REL_MAP_ACTIVITEIT_SELF = {
@@ -48,6 +50,25 @@ REL_MAP_ACTIVITEIT_SELF = {
     'vervangen_vanuit':   ('Activiteit', 'REPLACED_FROM', 'id'),
     'voortgezet_in':      ('Activiteit', 'CONTINUED_IN', 'id'),
     'voortgezet_vanuit':  ('Activiteit', 'CONTINUED_FROM', 'id')
+}
+
+REL_MAP_DOCUMENT_ACTOR = {
+    'persoon':   ('Persoon',   'ACTED_AS_PERSOON',   'id'),
+    'fractie':   ('Fractie',   'ACTED_AS_FRACTIE',   'id'),
+    'commissie': ('Commissie', 'ACTED_AS_COMMISSIE', 'id'),
+}
+
+REL_MAP_DOCUMENT_VERSIE = {
+    'publicaties':        ('DocumentPublicatie',        'HAS_PUBLICATIE',          'id'),
+    'publicatie_metadata': ('DocumentPublicatieMetadata', 'HAS_PUBLICATIE_METADATA', 'id'),
+}
+
+REL_MAP_FRACTIE = {
+    'zetels': ('FractieZetel', 'HAS_ZETEL', 'id'),
+}
+
+REL_MAP_FRACTIE_ZETEL = {
+    'persoon': ('Persoon', 'OCCUPIED_BY', 'id'),
 }
 
 # --- TKApi Timeout Configuration ---

@@ -67,12 +67,12 @@ toezegging_loader_instance = ToezeggingenLoader()
 loader_registry.register(toezegging_loader_instance)
 
 
-def load_toezeggingen(conn: Neo4jConnection):
+def load_toezeggingen(conn: Neo4jConnection, start_date_str: str = "2024-01-01"):
     api = TKApi()
     Toezegging.expand_params = ['Activiteit', 'ToegezegdAanPersoon', 'ToegezegdAanFractie']
     filter = Toezegging.create_filter()
     
-    filter.add_filter_str("AanmaakDatum ge 2024-01-01")
+    filter.add_filter_str(f"AanmaakDatum ge {start_date_str}")
 
     toezeggingen = api.get_items(Toezegging, filter=filter)
     print(f"→ Fetched {len(toezeggingen)} Toezeggingen")
