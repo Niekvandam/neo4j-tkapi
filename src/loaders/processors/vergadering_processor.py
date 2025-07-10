@@ -81,7 +81,8 @@ def process_and_load_vergadering(session, driver, vergadering_obj: Vergadering, 
     if vergadering_obj.verslag:
         if process_xml and process_and_load_verslag(session, driver, vergadering_obj.verslag, 
                                         related_vergadering_id=vergadering_obj.id,
-                                        canonical_api_vergadering_id_for_vlos=vergadering_obj.id):
+                                        canonical_api_vergadering_id_for_vlos=vergadering_obj.id,
+                                        defer_vlos_processing=True):
             pass 
         elif not process_xml:
             # Minimal Verslag node creation if not fully processed

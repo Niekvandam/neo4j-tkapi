@@ -174,4 +174,26 @@ def execute_all_loaders(
                 f"❌ Loader {loader_config['name']} failed, but continuing with remaining loaders..."
             )
 
+    # After all primary loaders, process any deferred VLOS XML items with enhanced matching
+    try:
+        from loaders.processors.common_processors import DEFERRED_VLOS_ITEMS
+        from loaders.enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
+
+        if DEFERRED_VLOS_ITEMS:
+            print(f"🚚 Processing {len(DEFERRED_VLOS_ITEMS)} deferred VLOS verslagen with enhanced matching...")
+            for xml_string, vergadering_id, verslag_id in DEFERRED_VLOS_ITEMS:
+                try:
+                    counts = load_enhanced_vlos_verslag(conn.driver, xml_string, vergadering_id, verslag_id)
+                    print(f"✅ Enhanced VLOS processing complete for Verslag {verslag_id}")
+                    print(f"   📊 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
+                          f"Speakers {counts['matched_speakers']}/{counts['speakers']}, "
+                          f"Zaken {counts['matched_zaken']}/{counts['zaken']}")
+                except Exception as e:
+                    success = False
+                    print(f"❌ Error processing deferred VLOS verslag {verslag_id}: {e}")
+            print("✅ Completed processing deferred VLOS verslagen with enhanced matching.")
+    except Exception as e:
+        success = False
+        print(f"❌ Error in deferred enhanced VLOS processing stage: {e}")
+
     return success

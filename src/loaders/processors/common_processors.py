@@ -8,7 +8,8 @@ from tkapi.fractie import Fractie
 from tkapi.agendapunt import Agendapunt
 from tkapi.zaak import Zaak
 from utils.helpers import merge_node, merge_rel
-from loaders.vlos_verslag_loader import load_vlos_verslag # Ensure this is at the top of common_processor.py
+from loaders.vlos_verslag_loader import load_vlos_verslag # Legacy loader
+from loaders.enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag # Enhanced loader
 import requests
 import concurrent.futures # For verslag XML download
 from typing import Optional
@@ -157,7 +158,8 @@ def process_and_load_stemming(session, stemming_obj: Stemming, parent_besluit_id
 
 def process_and_load_verslag(session, driver, verslag_obj: Verslag, 
                              related_vergadering_id: str = None, 
-                             canonical_api_vergadering_id_for_vlos: str = None): # ADDED NEW PARAM
+                             canonical_api_vergadering_id_for_vlos: str = None,
+                             defer_vlos_processing: bool = False):
     if not verslag_obj or not verslag_obj.id or verslag_obj.id in PROCESSED_VERSLAG_IDS:
         return False
 
@@ -196,10 +198,20 @@ def process_and_load_verslag(session, driver, verslag_obj: Verslag,
         print(f"      - Downloading XML resource for API Verslag {verslag_obj.id} (linked to Vergadering {canonical_api_vergadering_id_for_vlos})...")
         xml_content = download_verslag_xml(verslag_obj.id) # API Verslag ID is used to get the resource URL
         if xml_content:
-            print(f"      - Parsing VLOS XML and loading into Neo4j for Verslag {verslag_obj.id}...")
-            # Pass the canonical_api_vergadering_id to the VLOS loader
-            load_vlos_verslag(driver, xml_content, canonical_api_vergadering_id_for_vlos, verslag_obj.id)
-            print(f"      ✔ Successfully initiated VLOS XML processing for Verslag {verslag_obj.id}.")
+            if defer_vlos_processing:
+                # Queue for later processing at end of ETL
+                xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
+                DEFERRED_VLOS_ITEMS.append((xml_str, canonical_api_vergadering_id_for_vlos, verslag_obj.id))
+                print(f"      ⏩ Deferred VLOS processing for Verslag {verslag_obj.id} (queued for later)")
+            else:
+                print(f"      - Parsing VLOS XML with Enhanced Matching for Verslag {verslag_obj.id}...")
+                # Use enhanced VLOS loader with sophisticated matching
+                xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
+                counts = load_enhanced_vlos_verslag(driver, xml_str, canonical_api_vergadering_id_for_vlos, verslag_obj.id)
+                print(f"      ✔ Enhanced VLOS processing complete for Verslag {verslag_obj.id}.")
+                print(f"        📊 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
+                      f"Speakers {counts['matched_speakers']}/{counts['speakers']}, "
+                      f"Zaken {counts['matched_zaken']}/{counts['zaken']}")
             # Optional: Add a property to Verslag node indicating its VLOS XML has been processed
             session.run("MATCH (vs:Verslag {id: $id}) SET vs.vlos_xml_processed = true", id=verslag_obj.id)
 
@@ -254,4 +266,8 @@ def clear_processed_ids():
     PROCESSED_VERSLAG_IDS.clear()
     PROCESSED_ZAAK_IDS.clear()
     print("🧹 Cleared processed ID sets.")
+
+
+# Insert after PROCESSED_VERSLAG_IDS set definition
+DEFERRED_VLOS_ITEMS = []  # Tuples of (xml_string, canonical_vergadering_id, verslag_id)
 

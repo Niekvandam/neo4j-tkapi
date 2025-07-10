@@ -16,9 +16,9 @@ SCORE_TIME_OVERLAP_ONLY_VLOS = 1.5
 SCORE_SOORT_EXACT_VLOS = 2.0
 SCORE_SOORT_PARTIAL_XML_IN_API_VLOS = 1.5
 SCORE_SOORT_PARTIAL_API_IN_XML_VLOS = 1.0
-SCORE_ONDERWERP_EXACT_VLOS = 2.5
-SCORE_ONDERWERP_FUZZY_HIGH_VLOS = 2.0
-SCORE_ONDERWERP_FUZZY_MEDIUM_VLOS = 1.0
+SCORE_ONDERWERP_EXACT_VLOS = 4.0
+SCORE_ONDERWERP_FUZZY_HIGH_VLOS = 3.0
+SCORE_ONDERWERP_FUZZY_MEDIUM_VLOS = 2.0
 SCORE_TITEL_EXACT_VS_API_ONDERWERP_VLOS = 1.5
 SCORE_TITEL_FUZZY_HIGH_VS_API_ONDERWERP_VLOS = 1.0
 SCORE_TITEL_FUZZY_MEDIUM_VS_API_ONDERWERP_VLOS = 0.5
@@ -29,6 +29,15 @@ TIME_GENERAL_OVERLAP_BUFFER_SECONDS_VLOS = 600
 
 FUZZY_SIMILARITY_THRESHOLD_HIGH_VLOS = 90
 FUZZY_SIMILARITY_THRESHOLD_MEDIUM_VLOS = 75
+
+# --- Additional configuration for Agendapunt matching ---
+SCORE_ZAAK_LINK_AGP = 3.0  # Bonus if Agendapunt is linked to a Zaak mentioned in XML
+MIN_MATCH_SCORE_FOR_VLOS_AGENDAPUNT = 4.0
+
+
+# ------------------------------------------------------
+# Helper to fetch candidate Agendapunt nodes for a vergadering
+# ------------------------------------------------------
 
 
 def get_vlos_utc_datetime(dt_obj: Optional[datetime]) -> Optional[datetime]:
@@ -156,4 +165,76 @@ def calculate_vlos_activity_match_score(xml_activity_data: Dict[str, Any], api_a
                 score += SCORE_ONDERWERP_FUZZY_MEDIUM_VLOS
                 reasons.append(f"Onderwerp MEDIUM fuzzy match: {fuzzy_score}% - '{xml_title}' ≈ '{api_onderwerp}'")
     
+    return score, reasons 
+
+
+# ------------------------------------------------------
+# Helper to fetch candidate Agendapunt nodes for a vergadering
+# ------------------------------------------------------
+
+
+def get_candidate_api_agendapunten(session, canonical_vergadering_node: Neo4jNode) -> List[Dict[str, Any]]:
+    """Return Agendapunt dicts relevant to the vergadering (directly linked or via its activiteiten)."""
+    query = """
+    MATCH (verg:Vergadering {id: $verg_id})
+    OPTIONAL MATCH (verg)-[:HAS_AGENDAPUNT]->(ap_direct:Agendapunt)
+    OPTIONAL MATCH (verg)-[:HAS_ACTIVITEIT]->(:Activiteit)-[:HAS_AGENDAPUNT]->(ap_via_act:Agendapunt)
+    WITH collect(ap_direct) + collect(ap_via_act) AS all_ap
+    UNWIND all_ap AS ap
+    WITH DISTINCT ap WHERE ap IS NOT NULL
+    RETURN ap.id   AS id,
+           ap.onderwerp AS onderwerp,
+           ap.begin AS begin,
+           ap.einde AS einde
+    """
+    res = session.run(query, verg_id=canonical_vergadering_node["id"])
+    candidates = []
+    for rec in res:
+        candidates.append({
+            "id": rec["id"],
+            "onderwerp": rec["onderwerp"],
+            "begin": rec["begin"],
+            "einde": rec["einde"],
+        })
+    return candidates
+
+
+def calculate_vlos_agendapunt_match_score(xml_activity: Dict[str, Any], api_agp: Dict[str, Any]) -> tuple[float, List[str]]:
+    """Compute a similarity score between a VLOS activity (which acts as agenda item) and API Agendapunt."""
+    score = 0.0
+    reasons: List[str] = []
+
+    # Time
+    api_start = api_agp.get("begin")
+    api_end = api_agp.get("einde")
+    if api_start and api_end and xml_activity.get("start_time"):
+        time_score, time_reason = evaluate_vlos_time_match(
+            xml_activity.get("start_time"), xml_activity.get("end_time"), api_start, api_end
+        )
+        score += time_score
+        if time_score > 0:
+            reasons.append(time_reason)
+
+    # Titel/Onderwerp similarity
+    api_onderwerp = (api_agp.get("onderwerp") or "").lower()
+    xml_title = (xml_activity.get("title") or "").lower()
+
+    if api_onderwerp and xml_title:
+        if api_onderwerp == xml_title:
+            score += SCORE_ONDERWERP_EXACT_VLOS
+            reasons.append("Onderwerp EXACT match")
+        else:
+            fuzz_val = fuzz.ratio(api_onderwerp, xml_title)
+            if fuzz_val >= FUZZY_SIMILARITY_THRESHOLD_HIGH_VLOS:
+                score += SCORE_ONDERWERP_FUZZY_HIGH_VLOS
+                reasons.append(f"Onderwerp HIGH fuzzy match ({fuzz_val}%)")
+            elif fuzz_val >= FUZZY_SIMILARITY_THRESHOLD_MEDIUM_VLOS:
+                score += SCORE_ONDERWERP_FUZZY_MEDIUM_VLOS
+                reasons.append(f"Onderwerp MEDIUM fuzzy match ({fuzz_val}%)")
+
+    # Future: Zaak link bonus (xml_activity may include 'zaak_nummers' list)
+    if xml_activity.get("zaak_nummers") and isinstance(xml_activity["zaak_nummers"], list):
+        # We would need candidate Agendapunt's zaak nummers; skip for now
+        pass
+
     return score, reasons 

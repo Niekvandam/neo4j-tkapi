@@ -14,7 +14,7 @@ from typing import List, Optional, Any # For type hinting
 from thefuzz import fuzz # For fuzzy string matching
 
 # --- Configuration ---
-XML_FILE_PATH = "/Users/niek/Downloads/Open Data Portaal Verslag.xml" # Path to your full XML file
+XML_FILE_PATH = "/Users/niek/Documents/git-repos/neo4j-tkapi/sample_vlos_3ad601d2-ac2d-4fec-9a9c-2dda28a6ca38_d35df127-e439-4538-8954-0205f56e7636.xml" # Path to your full XML file
 LOCAL_TIMEZONE_OFFSET_HOURS = 2 # CEST for May 2019 in NL
 
 # Scoring weights

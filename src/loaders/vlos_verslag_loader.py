@@ -334,6 +334,36 @@ def _process_single_vlos_activiteit(session, activiteit_elem: ET.Element, sectio
                               'Activiteit', 'id', best_match['id'], 'MATCHES_API_ACTIVITY')
         print(f"    🔗 Matched VLOS activity '{title}' to API activity {best_match['id']} (score: {best_score:.1f})")
     
+    # Try to match with API agendapunten
+    from .processors.vlos_matching import get_candidate_api_agendapunten, calculate_vlos_agendapunt_match_score, MIN_MATCH_SCORE_FOR_VLOS_AGENDAPUNT
+
+    try:
+        candidate_agps = get_candidate_api_agendapunten(session, canonical_vergadering_node)
+    except Exception as e:
+        candidate_agps = []
+
+    best_agp = None
+    best_agp_score = 0.0
+
+    xml_activity_struct = {
+        'title': title,
+        'soort': activity_soort,
+        'start_time': start_time,
+        'end_time': end_time,
+        'zaak_nummers': []  # TODO: extract later
+    }
+
+    for agp in candidate_agps:
+        sc, _ = calculate_vlos_agendapunt_match_score(xml_activity_struct, agp)
+        if sc > best_agp_score:
+            best_agp_score = sc
+            best_agp = agp
+
+    if best_agp and best_agp_score >= MIN_MATCH_SCORE_FOR_VLOS_AGENDAPUNT:
+        session.execute_write(merge_rel, 'VlosActivity', 'id', activity_id,
+                              'Agendapunt', 'id', best_agp['id'], 'MATCHES_API_AGENDAPUNT')
+        print(f"    🔗 Matched VLOS activity '{title}' to API Agendapunt {best_agp['id']} (score: {best_agp_score:.1f})")
+
     # Process sub-elements within this activity
     _process_activity_speakers(session, activiteit_elem, activity_id)
     _process_activity_agendapunten(session, activiteit_elem, activity_id)
