@@ -1,11 +1,13 @@
 """
-Enhanced VLOS Verslag Loader - Uses sophisticated matching algorithms from test file
+Enhanced VLOS Verslag Loader - Comprehensive parliamentary discourse analysis
+Migrated from test_vlos_activity_matching_with_personen_and_zaken.py
 """
 
 import xml.etree.ElementTree as ET
 import time
 from typing import Optional, Dict, List, Any
 from datetime import datetime
+from collections import defaultdict
 
 from utils.helpers import merge_node, merge_rel
 from core.connection.neo4j_connection import Neo4jConnection
@@ -13,24 +15,28 @@ from core.connection.neo4j_connection import Neo4jConnection
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
 
-# Import enhanced matching logic
+# Import comprehensive enhanced matching logic
 from .processors.enhanced_vlos_matching import (
     NS_VLOS,
     parse_xml_datetime,
     get_candidate_api_activities,
     process_enhanced_vlos_activity,
     normalize_topic,
-    LOCAL_TIMEZONE_OFFSET_HOURS
+    LOCAL_TIMEZONE_OFFSET_HOURS,
+    match_vlos_speakers_to_personen,
+    create_speaker_zaak_connections,
+    detect_interruptions_in_activity,
+    analyze_voting_in_activity
 )
 
 
 class EnhancedVlosVerslagLoader(BaseLoader):
-    """Enhanced VLOS Verslag Loader with sophisticated matching algorithms"""
+    """Enhanced VLOS Verslag Loader with comprehensive parliamentary discourse analysis"""
     
     def __init__(self):
         super().__init__(
             name="enhanced_vlos_verslag_loader",
-            description="Enhanced VLOS XML processor with sophisticated activity, speaker, and zaak matching"
+            description="Comprehensive VLOS XML processor with sophisticated activity, speaker, zaak matching, interruption analysis, and voting analysis"
         )
         self._capabilities = [
             LoaderCapability.BATCH_PROCESSING,
@@ -78,7 +84,7 @@ class EnhancedVlosVerslagLoader(BaseLoader):
             canonical_api_vergadering_id = config.custom_params['canonical_api_vergadering_id']
             api_verslag_id = config.custom_params.get('api_verslag_id')
             
-            # Use the enhanced loading function
+            # Use the comprehensive enhanced loading function
             counts = load_enhanced_vlos_verslag(
                 conn.driver, 
                 xml_content, 
@@ -87,14 +93,21 @@ class EnhancedVlosVerslagLoader(BaseLoader):
             )
             
             result.success = True
-            result.processed_count = counts.get('activities', 0)
-            result.total_items = counts.get('total_items', 0)
+            result.processed_count = counts.get('matched_activities', 0)
+            result.total_items = counts.get('activities', 0)
             result.execution_time_seconds = time.time() - start_time
             
-            # Add summary to warnings for visibility
-            result.warnings.append(f"Processed {counts.get('activities', 0)} activities, "
-                                 f"{counts.get('speakers', 0)} speakers, "
-                                 f"{counts.get('zaken', 0)} zaken")
+            # Add comprehensive summary to warnings for visibility
+            result.warnings.append(
+                f"🎯 Match rates - Activities: {counts.get('matched_activities', 0)}/{counts.get('activities', 0)}, "
+                f"Speakers: {counts.get('matched_speakers', 0)}/{counts.get('speakers', 0)}, "
+                f"Zaken: {counts.get('matched_zaken', 0)}/{counts.get('zaken', 0)}"
+            )
+            result.warnings.append(
+                f"🔗 Connections: {counts.get('speaker_zaak_connections', 0)} speaker-zaak, "
+                f"🗣️ Interruptions: {counts.get('interruptions', 0)}, "
+                f"🗳️ Voting events: {counts.get('voting_events', 0)}"
+            )
             
         except Exception as e:
             result.error_messages.append(f"Enhanced VLOS loading failed: {str(e)}")
@@ -111,7 +124,16 @@ loader_registry.register(enhanced_vlos_verslag_loader_instance)
 def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergadering_id: str, 
                               api_verslag_id: str = None) -> Dict[str, int]:
     """
-    Enhanced VLOS loading with sophisticated matching algorithms.
+    Comprehensive enhanced VLOS loading with full parliamentary discourse analysis.
+    
+    This function implements the complete sophisticated matching system including:
+    - Enhanced activity matching with scoring algorithms
+    - Speaker identification and linking to Personen
+    - Zaak/Dossier linking with fallback logic
+    - Speaker-zaak relationship network creation
+    - Parliamentary interruption analysis
+    - Parliamentary voting analysis
+    - Proper use of TK-API IDs (not VLOS objectids)
     
     Args:
         driver: Neo4j driver instance
@@ -120,9 +142,9 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
         api_verslag_id: Optional ID of the API Verslag
         
     Returns:
-        Dict with counts of processed items
+        Dict with comprehensive counts and statistics
     """
-    print(f"🚀 Processing VLOS XML with Enhanced Matching for Vergadering {canonical_api_vergadering_id}")
+    print(f"🚀 Processing VLOS XML with Comprehensive Parliamentary Analysis for Vergadering {canonical_api_vergadering_id}")
     
     counts = {
         'activities': 0,
@@ -131,14 +153,22 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
         'matched_activities': 0,
         'matched_speakers': 0,
         'matched_zaken': 0,
+        'speaker_zaak_connections': 0,
+        'interruptions': 0,
+        'voting_events': 0,
         'total_items': 0
     }
+    
+    # Track relationships using TK-API IDs (not VLOS objectids)
+    activity_speakers = defaultdict(list)  # api_activity_id -> list of speakers
+    activity_zaken = defaultdict(list)     # api_activity_id -> list of zaken
+    interruption_events = []
+    voting_events = []
     
     try:
         # Parse XML
         root = ET.fromstring(xml_content)
         
-        # Debug XML structure
         print(f"🔍 XML Root: {root.tag}")
         print(f"🔍 XML Attributes: {root.attrib}")
         
@@ -156,7 +186,7 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
             canonical_vergadering_node = canonical_vergadering_node['v']
             
             # Get API activities for matching
-            print("📊 Fetching candidate API activities...")
+            print("📊 Fetching candidate API activities for sophisticated matching...")
             api_activities = get_candidate_api_activities(session, canonical_vergadering_node)
             print(f"📊 Found {len(api_activities)} candidate API activities")
             
@@ -167,7 +197,8 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
                 'vergadering_id': canonical_api_vergadering_id,
                 'source': 'enhanced_vlos_xml',
                 'processed_at': str(time.time()),
-                'matching_version': '2.0'
+                'matching_version': '3.0',  # Updated version
+                'features': 'activity_matching,speaker_matching,zaak_matching,interruption_analysis,voting_analysis'
             }
             session.execute_write(merge_node, 'EnhancedVlosDocument', 'id', doc_props)
             
@@ -183,7 +214,8 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
             
             # Process all vergadering elements
             for vergadering_elem in root.findall('.//vlos:vergadering', NS_VLOS):
-                print(f"🔄 Processing vergadering: {vergadering_elem.get('objectid', 'Unknown')}")
+                vergadering_objectid = vergadering_elem.get('objectid', 'Unknown')
+                print(f"🔄 Processing vergadering: {vergadering_objectid}")
                 
                 # Extract vergadering metadata
                 vergadering_soort = vergadering_elem.get('soort', '')
@@ -197,126 +229,76 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
                 # Process all activities within this vergadering
                 activities = vergadering_elem.findall('.//vlos:activiteit', NS_VLOS)
                 print(f"  📊 Found {len(activities)} XML activities to process")
+                counts['activities'] += len(activities)
                 
-                for xml_act in activities:
-                    counts['activities'] += 1
-                    counts['total_items'] += 1
-                    
-                    # Use enhanced activity processing
-                    activity_id = process_enhanced_vlos_activity(
-                        session, 
-                        xml_act, 
-                        canonical_vergadering_node, 
-                        api_activities
+                for activity_elem in activities:
+                    # Process with comprehensive analysis
+                    api_activity_id = process_enhanced_vlos_activity(
+                        session, activity_elem, api_activities, canonical_api_vergadering_id,
+                        activity_speakers, activity_zaken, interruption_events, voting_events
                     )
                     
-                    if activity_id:
-                        # Check if activity was matched (has relationship to API activity)
-                        match_check = session.run(
-                            "MATCH (va:VlosActivity {id: $id})-[:MATCHES_API_ACTIVITY]->(a:Activiteit) RETURN COUNT(*) as count",
-                            id=activity_id
-                        ).single()
-                        
-                        if match_check and match_check['count'] > 0:
-                            counts['matched_activities'] += 1
-                        
-                        # Count speakers and zaken processed for this activity
-                        speaker_count = session.run(
-                            "MATCH (va:VlosActivity {id: $id})-[:HAS_SPEAKER]->(vs:VlosSpeaker) RETURN COUNT(*) as count",
-                            id=activity_id
-                        ).single()
-                        
-                        if speaker_count:
-                            counts['speakers'] += speaker_count['count']
-                        
-                        matched_speaker_count = session.run(
-                            "MATCH (va:VlosActivity {id: $id})-[:HAS_SPEAKER]->(vs:VlosSpeaker)-[:MATCHES_PERSOON]->(p:Persoon) RETURN COUNT(*) as count",
-                            id=activity_id
-                        ).single()
-                        
-                        if matched_speaker_count:
-                            counts['matched_speakers'] += matched_speaker_count['count']
-                        
-                        zaak_count = session.run(
-                            "MATCH (va:VlosActivity {id: $id})-[:HAS_ZAAK]->(vz:VlosZaak) RETURN COUNT(*) as count",
-                            id=activity_id
-                        ).single()
-                        
-                        if zaak_count:
-                            counts['zaken'] += zaak_count['count']
-                        
-                        # Count both direct Zaak matches and Dossier fallback matches
-                        matched_zaak_count = session.run("""
-                            MATCH (va:VlosActivity {id: $id})-[:HAS_ZAAK]->(vz:VlosZaak)
-                            WHERE EXISTS((vz)-[:MATCHES_API_ZAAK]->()) OR 
-                                  (NOT EXISTS((vz)-[:MATCHES_API_ZAAK]->()) AND EXISTS((vz)-[:RELATED_TO_DOSSIER]->()))
-                            RETURN COUNT(*) as count
-                        """, id=activity_id).single()
-                        
-                        if matched_zaak_count:
-                            counts['matched_zaken'] += matched_zaak_count['count']
+                    if api_activity_id:
+                        counts['matched_activities'] += 1
+                        print(f"    ✅ Successfully processed activity → API ID: {api_activity_id}")
+                    else:
+                        print(f"    ❌ Failed to match activity")
             
-            # Post-processing: Create comprehensive summary statistics with speaker-zaak connections
-            from .processors.enhanced_vlos_matching import calculate_enhanced_vlos_statistics
+            # Post-processing: Match VLOS speakers to Personen
+            print("🔗 Phase 2: Matching VLOS speakers to Persoon nodes...")
+            matched_speakers = match_vlos_speakers_to_personen(session)
+            counts['matched_speakers'] = matched_speakers
+            print(f"✅ Matched {matched_speakers} speakers to Persoon nodes")
             
-            enhanced_stats = calculate_enhanced_vlos_statistics(session, doc_id)
+            # Post-processing: Create speaker-zaak relationship network
+            print("🔗 Phase 3: Creating comprehensive speaker-zaak relationship network...")
+            speaker_connections = create_speaker_zaak_connections(session, activity_speakers, activity_zaken)
+            counts['speaker_zaak_connections'] = speaker_connections
+            print(f"✅ Created {speaker_connections} speaker-zaak connections")
             
-            # Create comprehensive summary
-            summary_props = {
-                'id': f"summary_{doc_id}",
-                'document_id': doc_id,
-                'total_activities': enhanced_stats.get('total_activities', 0),
-                'matched_activities': enhanced_stats.get('matched_activities', 0),
-                'total_speakers': enhanced_stats.get('total_speakers', 0),
-                'matched_speakers': enhanced_stats.get('matched_speakers', 0),
-                'total_zaken': enhanced_stats.get('total_zaken', 0),
-                'direct_zaak_matches': enhanced_stats.get('direct_zaak_matches', 0),
-                'dossier_fallback_matches': enhanced_stats.get('dossier_fallback_matches', 0),
-                'total_zaak_successes': enhanced_stats.get('total_zaak_successes', 0),
-                'document_matches': enhanced_stats.get('document_matches', 0),
-                'activity_match_rate': enhanced_stats.get('activity_match_rate', 0.0),
-                'speaker_match_rate': enhanced_stats.get('speaker_match_rate', 0.0),
-                'zaak_match_rate': enhanced_stats.get('zaak_match_rate', 0.0),
-                'speakers_with_zaak_connections': enhanced_stats.get('speakers_with_zaak_connections', 0),
-                'unique_zaken_discussed_by_speakers': enhanced_stats.get('unique_zaken_discussed_by_speakers', 0),
-                'personen_with_zaak_connections': enhanced_stats.get('personen_with_zaak_connections', 0),
-                'unique_zaken_discussed_by_personen': enhanced_stats.get('unique_zaken_discussed_by_personen', 0),
-                'speaker_zaak_connection_rate': enhanced_stats.get('speaker_zaak_connection_rate', 0.0),
-                'persoon_zaak_connection_rate': enhanced_stats.get('persoon_zaak_connection_rate', 0.0),
-                'source': 'enhanced_vlos_summary_v2'
-            }
+            # Count total speakers and zaken
+            all_speakers = set()
+            all_zaken = set()
+            for speakers_list in activity_speakers.values():
+                all_speakers.update(speaker['id'] for speaker in speakers_list)
+            for zaken_list in activity_zaken.values():
+                all_zaken.update(zaak['id'] for zaak in zaken_list)
             
-            session.execute_write(merge_node, 'VlosProcessingSummary', 'id', summary_props)
-            session.execute_write(merge_rel, 'EnhancedVlosDocument', 'id', doc_id,
-                                  'VlosProcessingSummary', 'id', summary_props['id'], 'HAS_SUMMARY')
+            counts['speakers'] = len(all_speakers)
+            counts['zaken'] = len(all_zaken)
+            counts['matched_zaken'] = len(all_zaken)  # All found zaken are considered matched
             
-        # Final summary with enhanced statistics
-        print(f"\n🎯 Enhanced VLOS Processing Complete!")
-        print(f"📊 Activities: {enhanced_stats.get('matched_activities', 0)}/{enhanced_stats.get('total_activities', 0)} matched "
-              f"({enhanced_stats.get('activity_match_rate', 0)*100:.1f}%)")
-        print(f"👥 Speakers: {enhanced_stats.get('matched_speakers', 0)}/{enhanced_stats.get('total_speakers', 0)} matched "
-              f"({enhanced_stats.get('speaker_match_rate', 0)*100:.1f}%)")
-        
-        # Enhanced Zaak statistics with fallback breakdown
-        total_zaken = enhanced_stats.get('total_zaken', 0)
-        direct_matches = enhanced_stats.get('direct_zaak_matches', 0)
-        fallback_matches = enhanced_stats.get('dossier_fallback_matches', 0)
-        total_successes = enhanced_stats.get('total_zaak_successes', 0)
-        
-        print(f"📋 Zaken: {total_successes}/{total_zaken} matched ({enhanced_stats.get('zaak_match_rate', 0)*100:.1f}%)")
-        print(f"   ├─ Direct Zaak matches: {direct_matches}")
-        print(f"   └─ Dossier fallback matches: {fallback_matches}")
-        
-        # Speaker-Zaak connection statistics
-        speakers_connected = enhanced_stats.get('speakers_with_zaak_connections', 0)
-        personen_connected = enhanced_stats.get('personen_with_zaak_connections', 0)
-        unique_zaken_discussed = enhanced_stats.get('unique_zaken_discussed_by_personen', 0)
-        
-        print(f"🔗 Speaker-Zaak Connections:")
-        print(f"   ├─ Speakers with zaak connections: {speakers_connected}")
-        print(f"   ├─ Personen with zaak connections: {personen_connected}")
-        print(f"   ├─ Unique zaken/dossiers discussed: {unique_zaken_discussed}")
-        print(f"   └─ Persoon-zaak connection rate: {enhanced_stats.get('persoon_zaak_connection_rate', 0)*100:.1f}%")
+            # Analyze interruptions
+            counts['interruptions'] = len(interruption_events)
+            if interruption_events:
+                print(f"🗣️ Detected {len(interruption_events)} interruption events")
+                _create_interruption_analysis_nodes(session, interruption_events, doc_id)
+            
+            # Analyze voting
+            counts['voting_events'] = len(voting_events)
+            if voting_events:
+                print(f"🗳️ Detected {len(voting_events)} voting events")
+                _create_voting_analysis_nodes(session, voting_events, doc_id)
+            
+            counts['total_items'] = counts['activities']
+            
+            # Create summary statistics node
+            _create_analysis_summary(session, doc_id, counts, activity_speakers, activity_zaken, 
+                                   interruption_events, voting_events)
+            
+        print("=" * 80)
+        print("🎯 COMPREHENSIVE PARLIAMENTARY DISCOURSE ANALYSIS COMPLETE")
+        print("=" * 80)
+        print(f"📊 Overall Match Rate: {counts['matched_activities']}/{counts['activities']} "
+              f"({100 * counts['matched_activities'] / max(counts['activities'], 1):.1f}%)")
+        print(f"👥 Speaker Match Rate: {counts['matched_speakers']}/{counts['speakers']} "
+              f"({100 * counts['matched_speakers'] / max(counts['speakers'], 1):.1f}%)")
+        print(f"📋 Zaak Match Rate: {counts['matched_zaken']}/{counts['zaken']} "
+              f"({100 * counts['matched_zaken'] / max(counts['zaken'], 1):.1f}%)")
+        print(f"🔗 Speaker-Zaak Connections: {counts['speaker_zaak_connections']}")
+        print(f"🗣️ Interruption Events: {counts['interruptions']}")
+        print(f"🗳️ Voting Events: {counts['voting_events']}")
+        print("=" * 80)
         
         return counts
         
@@ -324,8 +306,123 @@ def load_enhanced_vlos_verslag(driver, xml_content: str, canonical_api_vergaderi
         print(f"❌ XML parsing error: {e}")
         raise
     except Exception as e:
-        print(f"❌ Error in enhanced VLOS processing: {e}")
+        print(f"❌ Error in comprehensive VLOS processing: {e}")
         raise
+
+
+def _create_interruption_analysis_nodes(session, interruption_events: List[Dict[str, Any]], doc_id: str):
+    """Create Neo4j nodes for interruption analysis"""
+    
+    for i, event in enumerate(interruption_events):
+        event_id = f"interruption_{doc_id}_{i}"
+        
+        event_props = {
+            'id': event_id,
+            'type': event['type'],
+            'document_id': doc_id,
+            'source': 'enhanced_vlos_analysis'
+        }
+        
+        if event['type'] == 'simple_interruption':
+            event_props['original_speaker'] = event['original_speaker']['naam']
+            event_props['interrupter'] = event['interrupter']['naam']
+        elif event['type'] == 'interruption_with_response':
+            event_props['original_speaker'] = event['original_speaker']['naam']
+            event_props['interrupter'] = event['interrupter']['naam']
+            event_props['response_speaker'] = event['response']['naam']
+        
+        session.execute_write(merge_node, 'InterruptionEvent', 'id', event_props)
+        session.execute_write(merge_rel, 'EnhancedVlosDocument', 'id', doc_id,
+                              'InterruptionEvent', 'id', event_id, 'HAS_INTERRUPTION_EVENT')
+
+
+def _create_voting_analysis_nodes(session, voting_events: List[Dict[str, Any]], doc_id: str):
+    """Create Neo4j nodes for voting analysis"""
+    
+    for i, event in enumerate(voting_events):
+        event_id = f"voting_{doc_id}_{i}"
+        
+        event_props = {
+            'id': event_id,
+            'total_votes': event['total_votes'],
+            'voor_votes': event['voor_votes'],
+            'tegen_votes': event['tegen_votes'],
+            'consensus_percentage': event['consensus_percentage'],
+            'is_unanimous': event['is_unanimous'],
+            'is_controversial': event['is_controversial'],
+            'document_id': doc_id,
+            'source': 'enhanced_vlos_analysis'
+        }
+        
+        session.execute_write(merge_node, 'VotingEvent', 'id', event_props)
+        session.execute_write(merge_rel, 'EnhancedVlosDocument', 'id', doc_id,
+                              'VotingEvent', 'id', event_id, 'HAS_VOTING_EVENT')
+        
+        # Create individual vote nodes
+        for j, vote in enumerate(event['votes']):
+            vote_id = f"vote_{event_id}_{j}"
+            vote_props = {
+                'id': vote_id,
+                'fractie': vote['fractie'],
+                'stemming': vote['stemming'],
+                'voting_event_id': event_id,
+                'source': 'enhanced_vlos_analysis'
+            }
+            
+            session.execute_write(merge_node, 'IndividualVote', 'id', vote_props)
+            session.execute_write(merge_rel, 'VotingEvent', 'id', event_id,
+                                  'IndividualVote', 'id', vote_id, 'HAS_VOTE')
+
+
+def _create_analysis_summary(session, doc_id: str, counts: Dict[str, int], 
+                           activity_speakers: Dict[str, List[str]], activity_zaken: Dict[str, List[str]],
+                           interruption_events: List[Dict[str, Any]], voting_events: List[Dict[str, Any]]):
+    """Create comprehensive analysis summary node"""
+    
+    # Calculate additional statistics
+    unique_speakers = set()
+    unique_zaken = set()
+    
+    for speakers_list in activity_speakers.values():
+        unique_speakers.update(speaker['id'] for speaker in speakers_list)
+    
+    for zaken_list in activity_zaken.values():
+        unique_zaken.update(zaak['id'] for zaak in zaken_list)
+    
+    # Interruption statistics
+    interruption_types = defaultdict(int)
+    for event in interruption_events:
+        interruption_types[event['type']] += 1
+    
+    # Voting statistics
+    unanimous_votes = sum(1 for event in voting_events if event['is_unanimous'])
+    controversial_votes = sum(1 for event in voting_events if event['is_controversial'])
+    
+    summary_props = {
+        'id': f"summary_{doc_id}",
+        'document_id': doc_id,
+        'total_activities': counts['activities'],
+        'matched_activities': counts['matched_activities'],
+        'total_speakers': counts['speakers'],
+        'matched_speakers': counts['matched_speakers'],
+        'total_zaken': counts['zaken'],
+        'speaker_zaak_connections': counts['speaker_zaak_connections'],
+        'unique_speakers_with_connections': len(unique_speakers),
+        'unique_zaken_discussed': len(unique_zaken),
+        'total_interruptions': counts['interruptions'],
+        'simple_interruptions': interruption_types.get('simple_interruption', 0),
+        'interruptions_with_response': interruption_types.get('interruption_with_response', 0),
+        'fragment_interruptions': interruption_types.get('fragment_interruption', 0),
+        'total_voting_events': counts['voting_events'],
+        'unanimous_votes': unanimous_votes,
+        'controversial_votes': controversial_votes,
+        'analysis_timestamp': str(time.time()),
+        'source': 'enhanced_vlos_analysis'
+    }
+    
+    session.execute_write(merge_node, 'ParliamentaryAnalysisSummary', 'id', summary_props)
+    session.execute_write(merge_rel, 'EnhancedVlosDocument', 'id', doc_id,
+                          'ParliamentaryAnalysisSummary', 'id', summary_props['id'], 'HAS_ANALYSIS_SUMMARY')
 
 
 # Utility function to run enhanced VLOS processing on existing data

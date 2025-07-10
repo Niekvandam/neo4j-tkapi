@@ -5,7 +5,7 @@ from tkapi.vergadering import Vergadering, VergaderingFilter, VergaderingSoort #
 from tkapi.verslag import Verslag
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
-from .processors.common_processors import process_and_load_verslag, PROCESSED_VERSLAG_IDS, download_verslag_xml, process_and_load_zaak, PROCESSED_ZAAK_IDS
+from .processors.common_processors import process_and_load_verslag, PROCESSED_VERSLAG_IDS, download_verslag_xml, process_and_load_zaak, PROCESSED_ZAAK_IDS, process_deferred_vlos_items
 from tkapi.util import util as tkapi_util
 from datetime import timezone, timedelta
 
@@ -150,6 +150,11 @@ def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_s
             process_vergadering_wrapper(vergadering_obj)
 
     print("✅ Loaded Vergaderingen and their related entities.")
+    
+    # Process any deferred VLOS items with comprehensive parliamentary analysis
+    print("\n🔄 Processing deferred VLOS items...")
+    process_deferred_vlos_items(conn.driver)
+    print("✅ All processing complete!")
 
 
 # Keep the original function for backward compatibility (if needed)

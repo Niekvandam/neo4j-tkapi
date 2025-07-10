@@ -2,7 +2,7 @@ from tkapi import TKApi
 from tkapi.persoon import Persoon
 from core.connection.neo4j_connection import Neo4jConnection
 # Helpers
-from utils.helpers import merge_node, merge_rel
+from utils.helpers import merge_node, merge_rel, batch_check_nodes_exist
 
 # Relationship map
 from core.config.constants import REL_MAP_PERSOON, REL_MAP_PERSOON_NEVENFUNCTIE
@@ -24,6 +24,15 @@ from tkapi.persoon import (
 
 # Import interface system
 from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
+
+# Import checkpoint functionality
+from core.checkpoint.checkpoint_manager import CheckpointManager
+from core.checkpoint.checkpoint_decorator import checkpoint_loader
+
+# Import processors and threading utilities
+from .processors.persoon_processor import process_single_persoon, process_single_persoon_threaded
+from .threading.threaded_loader import process_items_threaded
+
 import time
 import datetime
 import json
@@ -38,12 +47,27 @@ class PersoonLoader(BaseLoader):
     def __init__(self):
         super().__init__(
             name="persoon_loader",
-            description="Loads Personen from TK API"
+            description="Loads Personen from TK API with threading support"
         )
         self._capabilities = [
+            LoaderCapability.THREADING,
             LoaderCapability.BATCH_PROCESSING,
+            LoaderCapability.SKIP_FUNCTIONALITY,
+            LoaderCapability.ID_CHECKING,
+            LoaderCapability.INCREMENTAL_LOADING,
             LoaderCapability.RELATIONSHIP_PROCESSING
         ]
+    
+    def validate_config(self, config: LoaderConfig) -> list[str]:
+        """Validate configuration specific to PersoonLoader"""
+        errors = super().validate_config(config)
+        
+        # Add specific validation for Persoon loader
+        if config.custom_params and 'overwrite' in config.custom_params:
+            if not isinstance(config.custom_params['overwrite'], bool):
+                errors.append("custom_params.overwrite must be a boolean")
+        
+        return errors
     
     def load(self, conn: Neo4jConnection, config: LoaderConfig, 
              checkpoint_manager=None) -> LoaderResult:
@@ -67,11 +91,34 @@ class PersoonLoader(BaseLoader):
                 result.error_messages.extend(validation_errors)
                 return result
             
-            # Fetch all Personen (no artificial limit)
-            load_personen(conn)
+            # Extract parameters
+            overwrite = config.custom_params.get('overwrite', False) if config.custom_params else False
             
-            # For now, we'll mark as successful if no exceptions occurred
+            # Use the appropriate loading function
+            if config.enable_threading:
+                stats = load_personen_threaded(
+                    conn=conn,
+                    batch_size=config.batch_size,
+                    max_workers=config.max_workers,
+                    skip_count=config.skip_count,
+                    overwrite=overwrite,
+                    checkpoint_manager=checkpoint_manager
+                )
+            else:
+                load_personen(
+                    conn=conn,
+                    batch_size=config.batch_size,
+                    skip_count=config.skip_count,
+                    overwrite=overwrite
+                )
+                stats = {"processed": 0, "failed": 0}  # Placeholder for non-threaded version
+            
+            # Update result with statistics
             result.success = True
+            result.processed_count = stats.get("processed", 0)
+            result.failed_count = stats.get("failed", 0)
+            result.skipped_count = stats.get("skipped", 0)
+            result.total_items = stats.get("total", 0)
             result.execution_time_seconds = time.time() - start_time
             
         except Exception as e:
@@ -86,8 +133,8 @@ persoon_loader_instance = PersoonLoader()
 loader_registry.register(persoon_loader_instance)
 
 
-def load_personen(conn: Neo4jConnection, batch_size: int | None = None):
-    """Load all Personen unless a positive batch_size is explicitly provided."""
+def _fetch_personen_from_api(batch_size: int | None = None):
+    """Fetch personen from TK API"""
     api = TKApi()
 
     if batch_size is not None and batch_size > 0:
@@ -95,148 +142,105 @@ def load_personen(conn: Neo4jConnection, batch_size: int | None = None):
     else:
         # Fetch everything (no limit)
         personen = api.get_items(Persoon)
+    
     print(f"→ Fetched {len(personen)} Personen")
-    with conn.driver.session(database=conn.database) as session:
-        # open debug file once per run (overwrite existing)
-        debug_path = Path('debug_personen.jsonl')
-        with debug_path.open('w', encoding='utf-8') as dbg:
+    return personen
+
+
+@checkpoint_loader(checkpoint_interval=25)
+def load_personen(conn: Neo4jConnection, batch_size: int | None = None, 
+                  skip_count: int = 0, overwrite: bool = False, _checkpoint_context=None):
+    """Load all Personen with automatic checkpoint support using decorator."""
+    personen = _fetch_personen_from_api(batch_size)
+    
+    if not personen:
+        print("No personen found.")
+        return
+
+    # Apply skip_count if specified
+    if skip_count > 0:
+        if skip_count >= len(personen):
+            print(f"⚠️ Skip count ({skip_count}) is greater than or equal to total items ({len(personen)}). Nothing to process.")
+            return
+        personen = personen[skip_count:]
+        print(f"⏭️ Skipping first {skip_count} items. Processing {len(personen)} remaining items.")
+
+    # Check which personen already exist in Neo4j (unless overwrite is enabled)
+    if not overwrite and personen:
+        print("🔍 Checking which Personen already exist in Neo4j...")
+        persoon_ids = [p.id for p in personen if p and p.id]
+        
+        with conn.driver.session(database=conn.database) as session:
+            existing_ids = batch_check_nodes_exist(session, "Persoon", "id", persoon_ids)
+        
+        if existing_ids:
+            original_count = len(personen)
+            personen = [p for p in personen if p.id not in existing_ids]
+            filtered_count = len(personen)
+            print(f"📊 Found {len(existing_ids)} existing Personen in Neo4j")
+            print(f"⏭️ Skipping {original_count - filtered_count} existing items. Processing {filtered_count} new items.")
+            
+            if not personen:
+                print("✅ All Personen already exist in Neo4j. Nothing to process.")
+                return
+        else:
+            print("📊 No existing Personen found in Neo4j. Processing all items.")
+    elif overwrite:
+        print("🔄 Overwrite mode enabled - processing all items regardless of existing data")
+
+    # Open debug file once per run (overwrite existing)
+    debug_path = Path('debug_personen.jsonl')
+    with debug_path.open('w', encoding='utf-8') as dbg:
+        def process_wrapper(persoon_obj):
+            with conn.driver.session(database=conn.database) as session:
+                return process_single_persoon(session, persoon_obj, debug_file=dbg)
+
+        # Use the checkpoint context to process items automatically
+        if _checkpoint_context:
+            _checkpoint_context.process_items(personen, process_wrapper)
+        else:
+            # Fallback for when decorator is not used
             for i, p in enumerate(personen, 1):
                 if i % 100 == 0 or i == len(personen):
                     print(f"  → Processing Persoon {i}/{len(personen)}")
-                props = {
-                    'id': p.id,
-                    'achternaam': p.achternaam,
-                    'tussenvoegsel': p.tussenvoegsel,
-                    'initialen': p.initialen,
-                    'roepnaam': p.roepnaam,
-                    'voornamen': p.voornamen,
-                    'functie': p.functie,
-                    'geslacht': p.geslacht,
-                    'woonplaats': p.woonplaats,
-                    'land': p.land,
-                    'geboortedatum': str(p.geboortedatum) if p.geboortedatum else None,
-                    'geboorteland': p.geboorteland,
-                    'geboorteplaats': p.geboorteplaats,
-                    'overlijdensdatum': str(p.overlijdensdatum) if p.overlijdensdatum else None,
-                    'overlijdensplaats': p.overlijdensplaats,
-                    'titels': p.titels
-                }
-                # Dump raw props for debugging
-                dbg.write(json.dumps(props, ensure_ascii=False) + "\n")
+                process_wrapper(p)
 
-                # Merge the Person node itself
-                session.execute_write(merge_node, 'Persoon', 'id', props)
+    print("✅ Loaded Personen and their related entities.")
 
-                # ---------------- Process relationships (e.g. FractieZetelPersoon) ----------------
-                for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_PERSOON.items():
-                    related_items = getattr(p, attr_name, []) or []
 
-                    if not isinstance(related_items, (list, tuple)):
-                        related_items = [related_items]
+def load_personen_threaded(conn: Neo4jConnection, batch_size: int | None = None, 
+                          max_workers: int = 10, skip_count: int = 0, overwrite: bool = False, 
+                          checkpoint_manager: CheckpointManager = None):
+    """
+    Load Personen using multithreading for faster processing.
+    """
+    personen = _fetch_personen_from_api(batch_size)
+    
+    if not personen:
+        print("No personen found.")
+        return {"processed": 0, "failed": 0, "skipped": 0, "total": 0}
 
-                    for rel_obj in related_items:
-                        if not rel_obj:
-                            continue
-                        rel_key_val = getattr(rel_obj, target_key_prop, None)
-                        if rel_key_val is None:
-                            continue
+    # Use the generic threaded processor
+    return process_items_threaded(
+        items=personen,
+        process_func=process_single_persoon_threaded,
+        conn=conn,
+        max_workers=max_workers,
+        checkpoint_manager=checkpoint_manager,
+        loader_name="load_personen_threaded",
+        skip_count=skip_count,
+        overwrite=overwrite,
+        node_label="Persoon"
+    )
 
-                        # Specialised props per related label
-                        if target_label == 'FractieZetelPersoon':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'functie': getattr(rel_obj, 'functie', None),
-                                'van': _safe_date_str(rel_obj, 'van'),
-                                'tot_en_met': _safe_date_str(rel_obj, 'tot_en_met'),
-                            }
-                        elif target_label == 'PersoonContactinformatie':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'soort': getattr(rel_obj, 'soort', None).name if getattr(rel_obj, 'soort', None) else None,
-                                'waarde': getattr(rel_obj, 'waarde', None),
-                            }
-                        elif target_label == 'PersoonGeschenk':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'omschrijving': getattr(rel_obj, 'omschrijving', None),
-                                'datum': str(getattr(rel_obj, 'datum', None)) if getattr(rel_obj, 'datum', None) else None,
-                            }
-                        elif target_label == 'PersoonLoopbaan':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'functie': getattr(rel_obj, 'functie', None),
-                                'werkgever': getattr(rel_obj, 'werkgever', None),
-                                'van': _safe_date_str(rel_obj, 'van'),
-                                'tot_en_met': _safe_date_str(rel_obj, 'tot_en_met'),
-                            }
-                        elif target_label == 'PersoonOnderwijs':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'opleiding_nl': getattr(rel_obj, 'opleiding_nl', None),
-                                'instelling': getattr(rel_obj, 'instelling', None),
-                                'van': _safe_date_str(rel_obj, 'van'),
-                                'tot_en_met': _safe_date_str(rel_obj, 'tot_en_met'),
-                            }
-                        elif target_label == 'PersoonReis':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'doel': getattr(rel_obj, 'doel', None),
-                                'bestemming': getattr(rel_obj, 'bestemming', None),
-                                'van': _safe_date_str(rel_obj, 'van'),
-                                'tot_en_met': _safe_date_str(rel_obj, 'tot_en_met'),
-                                'betaald_door': getattr(rel_obj, 'betaald_door', None),
-                            }
-                        elif target_label == 'PersoonNevenfunctie':
-                            props_rel = {
-                                'id': rel_key_val,
-                                'omschrijving': getattr(rel_obj, 'omschrijving', None),
-                                'van': _safe_date_str(rel_obj, 'van'),
-                                'tot_en_met': _safe_date_str(rel_obj, 'tot_en_met'),
-                                'soort': getattr(rel_obj, 'soort', None),
-                                'toelichting': getattr(rel_obj, 'toelichting', None),
-                            }
-                        else:
-                            props_rel = {target_key_prop: rel_key_val}
 
-                        session.execute_write(merge_node, target_label, target_key_prop, props_rel)
-
-                        # If PersoonNevenfunctie, process inkomsten nested
-                        if target_label == 'PersoonNevenfunctie':
-                            for inc_attr, (inc_label, inc_rel_type, inc_key_prop) in REL_MAP_PERSOON_NEVENFUNCTIE.items():
-                                inc_items = getattr(rel_obj, inc_attr, []) or []
-                                if not isinstance(inc_items, (list, tuple)):
-                                    inc_items = [inc_items]
-                                for inc in inc_items:
-                                    if not inc:
-                                        continue
-                                    inc_key_val = getattr(inc, inc_key_prop, None)
-                                    if inc_key_val is None:
-                                        continue
-                                    inc_props = {
-                                        'id': inc_key_val,
-                                        'omschrijving': getattr(inc, 'omschrijving', None),
-                                        'datum': str(getattr(inc, 'datum', None)) if getattr(inc, 'datum', None) else None,
-                                    }
-                                    session.execute_write(merge_node, inc_label, inc_key_prop, inc_props)
-                                    session.execute_write(
-                                        merge_rel,
-                                        target_label, target_key_prop, rel_key_val,
-                                        inc_label, inc_key_prop, inc_key_val,
-                                        inc_rel_type
-                                    )
- 
-                        # Link Person -> related node
-                        session.execute_write(
-                            merge_rel,
-                            'Persoon', 'id', p.id,
-                            target_label, target_key_prop, rel_key_val,
-                            rel_type
-                        )
-        print("✅ Loaded Personen.")
+# Backward compatibility function
+def load_personen_original(conn: Neo4jConnection, batch_size: int | None = None):
+    """Original load_personen function for backward compatibility."""
+    return load_personen(conn, batch_size)
 
 
 # Helper to safely fetch dates that might be YYYY or YYYY-MM
-
 def _safe_date_str(obj, attr: str):
     """Return a string representation of the date attr but survive malformed TKApi dates (e.g. YYYY-MM)."""
     try:

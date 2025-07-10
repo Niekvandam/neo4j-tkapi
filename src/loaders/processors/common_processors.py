@@ -205,13 +205,16 @@ def process_and_load_verslag(session, driver, verslag_obj: Verslag,
                 print(f"      ⏩ Deferred VLOS processing for Verslag {verslag_obj.id} (queued for later)")
             else:
                 print(f"      - Parsing VLOS XML with Enhanced Matching for Verslag {verslag_obj.id}...")
-                # Use enhanced VLOS loader with sophisticated matching
+                # Use comprehensive enhanced VLOS loader with full parliamentary analysis
                 xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
+                from ..enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
                 counts = load_enhanced_vlos_verslag(driver, xml_str, canonical_api_vergadering_id_for_vlos, verslag_obj.id)
-                print(f"      ✔ Enhanced VLOS processing complete for Verslag {verslag_obj.id}.")
-                print(f"        📊 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
+                print(f"      ✔ Comprehensive Parliamentary Analysis complete for Verslag {verslag_obj.id}.")
+                print(f"        🎯 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
                       f"Speakers {counts['matched_speakers']}/{counts['speakers']}, "
                       f"Zaken {counts['matched_zaken']}/{counts['zaken']}")
+                print(f"        🔗 Connections: {counts['speaker_zaak_connections']} speaker-zaak")
+                print(f"        🗣️ Interruptions: {counts['interruptions']}, 🗳️ Voting events: {counts['voting_events']}")
             # Optional: Add a property to Verslag node indicating its VLOS XML has been processed
             session.run("MATCH (vs:Verslag {id: $id}) SET vs.vlos_xml_processed = true", id=verslag_obj.id)
 
@@ -270,4 +273,62 @@ def clear_processed_ids():
 
 # Insert after PROCESSED_VERSLAG_IDS set definition
 DEFERRED_VLOS_ITEMS = []  # Tuples of (xml_string, canonical_vergadering_id, verslag_id)
+
+
+def process_deferred_vlos_items(driver):
+    """Process all deferred VLOS items with comprehensive parliamentary analysis"""
+    if not DEFERRED_VLOS_ITEMS:
+        print("📋 No deferred VLOS items to process.")
+        return
+    
+    print(f"🚀 Processing {len(DEFERRED_VLOS_ITEMS)} deferred VLOS items with comprehensive analysis...")
+    
+    from ..enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
+    
+    total_counts = {
+        'activities': 0,
+        'matched_activities': 0,
+        'speakers': 0,
+        'matched_speakers': 0,
+        'zaken': 0,
+        'matched_zaken': 0,
+        'speaker_zaak_connections': 0,
+        'interruptions': 0,
+        'voting_events': 0
+    }
+    
+    for i, (xml_str, canonical_vergadering_id, verslag_id) in enumerate(DEFERRED_VLOS_ITEMS, 1):
+        print(f"📄 Processing deferred VLOS {i}/{len(DEFERRED_VLOS_ITEMS)}: Verslag {verslag_id}")
+        
+        try:
+            counts = load_enhanced_vlos_verslag(driver, xml_str, canonical_vergadering_id, verslag_id)
+            
+            # Accumulate totals
+            for key in total_counts:
+                total_counts[key] += counts.get(key, 0)
+            
+            print(f"  ✅ Processed: {counts['matched_activities']}/{counts['activities']} activities, "
+                  f"{counts['matched_speakers']}/{counts['speakers']} speakers, "
+                  f"{counts['speaker_zaak_connections']} connections")
+                  
+        except Exception as e:
+            print(f"  ❌ Error processing deferred VLOS for Verslag {verslag_id}: {e}")
+    
+    # Clear the deferred items
+    DEFERRED_VLOS_ITEMS.clear()
+    
+    print("=" * 80)
+    print("🎯 DEFERRED VLOS PROCESSING COMPLETE")
+    print("=" * 80)
+    print(f"📊 Total Match Rates:")
+    print(f"  🎯 Activities: {total_counts['matched_activities']}/{total_counts['activities']} "
+          f"({100 * total_counts['matched_activities'] / max(total_counts['activities'], 1):.1f}%)")
+    print(f"  👥 Speakers: {total_counts['matched_speakers']}/{total_counts['speakers']} "
+          f"({100 * total_counts['matched_speakers'] / max(total_counts['speakers'], 1):.1f}%)")
+    print(f"  📋 Zaken: {total_counts['matched_zaken']}/{total_counts['zaken']} "
+          f"({100 * total_counts['matched_zaken'] / max(total_counts['zaken'], 1):.1f}%)")
+    print(f"🔗 Total Speaker-Zaak Connections: {total_counts['speaker_zaak_connections']}")
+    print(f"🗣️ Total Interruption Events: {total_counts['interruptions']}")
+    print(f"🗳️ Total Voting Events: {total_counts['voting_events']}")
+    print("=" * 80)
 

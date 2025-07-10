@@ -1,0 +1,10 @@
+2025-07-11 00:24:32,710 [INFO] Logs are being written to logs/run_20250711_002432.log
+2025-07-11 00:24:32,713 [INFO] 📂 Resuming latest incomplete run: run_20250710_120428
+2025-07-11 00:24:32,713 [INFO] ⚠️ Configuration incompatibility detected:
+2025-07-11 00:24:32,713 [INFO]    • threaded: stored=False, current=True
+2025-07-11 00:24:32,713 [INFO] 
+❌ Configuration mismatch detected!
+2025-07-11 00:24:32,713 [INFO]    You can either:
+2025-07-11 00:24:32,713 [INFO]    1. Use the same configuration as the original run
+2025-07-11 00:24:32,713 [INFO]    2. Start a new run with --new-run
+2025-07-11 00:24:32,713 [INFO]    Original configuration: start_date=2025-07-02

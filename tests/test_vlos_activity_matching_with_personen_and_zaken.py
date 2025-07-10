@@ -208,6 +208,363 @@ def find_best_document(api: TKApi, dossier_num: int, dossier_toevoeging: str, st
     return docs[0] if docs else None
 
 # ---------------------------------------------------------------------------
+# Voting analysis helpers
+# ---------------------------------------------------------------------------
+
+def analyze_voting_in_activity(xml_act: ET.Element, activity_zaken: List[dict]) -> List[dict]:
+    """
+    Analyze voting patterns within an activity.
+    
+    Returns a list of voting events with fractie votes linked to topics.
+    """
+    voting_events = []
+    
+    # Look for activiteititem elements with voting data
+    for item in xml_act.findall(".//vlos:activiteititem", NS):
+        soort = item.get('soort', '')
+        
+        # Check for voting-related activity types
+        if soort.lower() in ['besluit', 'stemming', 'vote']:
+            titel = item.findtext("vlos:titel", default="", namespaces=NS)
+            besluitvorm = item.findtext("vlos:besluitvorm", default="", namespaces=NS)
+            uitslag = item.findtext("vlos:uitslag", default="", namespaces=NS)
+            
+            # Extract individual fractie votes
+            stemmingen_el = item.find("vlos:stemmingen", NS)
+            if stemmingen_el is not None:
+                fractie_votes = []
+                
+                for stemming in stemmingen_el.findall("vlos:stemming", NS):
+                    fractie_name = stemming.findtext("vlos:fractie", default="", namespaces=NS)
+                    stem_value = stemming.findtext("vlos:stem", default="", namespaces=NS)
+                    
+                    if fractie_name and stem_value:
+                        fractie_votes.append({
+                            'fractie': fractie_name,
+                            'vote': stem_value,
+                            'vote_normalized': stem_value.lower()
+                        })
+                
+                if fractie_votes:
+                    voting_event = {
+                        'type': 'fractie_voting',
+                        'titel': titel,
+                        'besluitvorm': besluitvorm,
+                        'uitslag': uitslag,
+                        'total_votes': len(fractie_votes),
+                        'fractie_votes': fractie_votes,
+                        'topics_discussed': [zaak['label'] for zaak in activity_zaken],
+                        'vote_breakdown': {}
+                    }
+                    
+                    # Calculate vote breakdown
+                    for vote in fractie_votes:
+                        vote_type = vote['vote_normalized']
+                        if vote_type not in voting_event['vote_breakdown']:
+                            voting_event['vote_breakdown'][vote_type] = []
+                        voting_event['vote_breakdown'][vote_type].append(vote['fractie'])
+                    
+                    voting_events.append(voting_event)
+    
+    return voting_events
+
+
+def analyze_voting_patterns(all_voting_events: List[dict]) -> dict:
+    """
+    Analyze voting patterns to identify political trends and party behaviors.
+    """
+    if not all_voting_events:
+        return {}
+    
+    # Fractie voting behavior
+    fractie_vote_counts = {}
+    fractie_topic_votes = {}
+    
+    # Topic voting patterns
+    topic_vote_patterns = {}
+    
+    # Vote type statistics
+    vote_type_counts = {'voor': 0, 'tegen': 0, 'niet_deelgenomen': 0, 'onthouding': 0}
+    
+    for event in all_voting_events:
+        topics = event['topics_discussed']
+        
+        for vote in event['fractie_votes']:
+            fractie = vote['fractie']
+            vote_type = vote['vote_normalized']
+            
+            # Track overall fractie voting behavior
+            if fractie not in fractie_vote_counts:
+                fractie_vote_counts[fractie] = {'voor': 0, 'tegen': 0, 'onthouding': 0, 'niet_deelgenomen': 0, 'total': 0}
+            
+            if vote_type in fractie_vote_counts[fractie]:
+                fractie_vote_counts[fractie][vote_type] += 1
+            fractie_vote_counts[fractie]['total'] += 1
+            
+            # Track fractie votes on specific topics
+            if fractie not in fractie_topic_votes:
+                fractie_topic_votes[fractie] = {}
+            
+            for topic in topics:
+                if topic not in fractie_topic_votes[fractie]:
+                    fractie_topic_votes[fractie][topic] = {'voor': 0, 'tegen': 0, 'onthouding': 0}
+                
+                if vote_type in fractie_topic_votes[fractie][topic]:
+                    fractie_topic_votes[fractie][topic][vote_type] += 1
+            
+            # Track topic voting patterns
+            for topic in topics:
+                if topic not in topic_vote_patterns:
+                    topic_vote_patterns[topic] = {
+                        'votes': {'voor': [], 'tegen': [], 'onthouding': []},
+                        'consensus_level': 0,
+                        'total_votes': 0
+                    }
+                
+                if vote_type in topic_vote_patterns[topic]['votes']:
+                    topic_vote_patterns[topic]['votes'][vote_type].append(fractie)
+                topic_vote_patterns[topic]['total_votes'] += 1
+            
+            # Overall vote type counting
+            if vote_type in vote_type_counts:
+                vote_type_counts[vote_type] += 1
+    
+    # Calculate consensus levels for topics
+    for topic, data in topic_vote_patterns.items():
+        total = data['total_votes']
+        if total > 0:
+            voor_count = len(data['votes']['voor'])
+            tegen_count = len(data['votes']['tegen'])
+            
+            # Consensus level: percentage of majority vote
+            majority_count = max(voor_count, tegen_count)
+            data['consensus_level'] = (majority_count / total) * 100
+    
+    # Calculate fractie alignment (how often they vote with majority)
+    fractie_alignment = {}
+    for fractie in fractie_vote_counts.keys():
+        total_votes = fractie_vote_counts[fractie]['total']
+        alignment_score = 0  # This would need more complex calculation across all votes
+        fractie_alignment[fractie] = {
+            'total_votes': total_votes,
+            'voor_percentage': (fractie_vote_counts[fractie]['voor'] / total_votes * 100) if total_votes > 0 else 0,
+            'tegen_percentage': (fractie_vote_counts[fractie]['tegen'] / total_votes * 100) if total_votes > 0 else 0
+        }
+    
+    return {
+        'total_voting_events': len(all_voting_events),
+        'total_individual_votes': sum(len(event['fractie_votes']) for event in all_voting_events),
+        'fractie_vote_counts': dict(sorted(fractie_vote_counts.items(), key=lambda x: x[1]['total'], reverse=True)),
+        'fractie_alignment': dict(sorted(fractie_alignment.items(), key=lambda x: x[1]['voor_percentage'], reverse=True)),
+        'topic_vote_patterns': dict(sorted(topic_vote_patterns.items(), key=lambda x: x[1]['consensus_level'], reverse=True)),
+        'vote_type_distribution': vote_type_counts,
+        'most_controversial_topics': dict(sorted(
+            {k: v for k, v in topic_vote_patterns.items() if v['consensus_level'] < 80}.items(),
+            key=lambda x: x[1]['consensus_level']
+        )),
+        'unanimous_topics': dict(sorted(
+            {k: v for k, v in topic_vote_patterns.items() if v['consensus_level'] >= 95}.items(),
+            key=lambda x: x[1]['total_votes'], reverse=True
+        ))
+    }
+
+# ---------------------------------------------------------------------------
+# Interruption analysis helpers
+# ---------------------------------------------------------------------------
+
+def detect_interruptions_in_activity(xml_act: ET.Element, activity_speakers: List[dict], 
+                                    activity_zaken: List[dict]) -> List[dict]:
+    """
+    Detect interruption patterns within an activity.
+    
+    Returns a list of interruption events with context about topics being discussed.
+    """
+    interruptions = []
+    
+    # Track speaker sequence within draadboekfragments
+    speaker_sequence = []
+    fragment_count = 0
+    
+    for frag in xml_act.findall(".//vlos:draadboekfragment", NS):
+        tekst_el = frag.find("vlos:tekst", NS)
+        if tekst_el is None:
+            continue
+            
+        fragment_count += 1
+        speech_text = collapse_text(tekst_el)
+        if not speech_text:
+            continue
+        
+        # Get all speakers in this fragment
+        fragment_speakers = []
+        for sprek_el in frag.findall("vlos:sprekers/vlos:spreker", NS):
+            v_first = sprek_el.findtext("vlos:voornaam", default="", namespaces=NS)
+            v_last = (
+                sprek_el.findtext("vlos:verslagnaam", default="", namespaces=NS)
+                or sprek_el.findtext("vlos:achternaam", default="", namespaces=NS)
+            )
+            
+            if v_last:
+                # Find matching persoon from activity speakers
+                matched_persoon = None
+                for speaker_info in activity_speakers:
+                    if (speaker_info['persoon'].achternaam.lower() == v_last.lower() or
+                        calc_name_similarity(v_first, v_last, speaker_info['persoon']) >= 60):
+                        matched_persoon = speaker_info['persoon']
+                        break
+                
+                speaker_entry = {
+                    'fragment_id': fragment_count,
+                    'persoon': matched_persoon,
+                    'name': f"{v_first} {v_last}",
+                    'persoon_id': matched_persoon.id if matched_persoon else None,
+                    'speech_text': speech_text[:200],
+                    'speech_length': len(speech_text)
+                }
+                fragment_speakers.append(speaker_entry)
+                speaker_sequence.append(speaker_entry)
+        
+        # If multiple speakers in one fragment, that's a clear interruption pattern
+        if len(fragment_speakers) > 1:
+            for i in range(1, len(fragment_speakers)):
+                interruption = {
+                    'type': 'fragment_interruption',
+                    'original_speaker': fragment_speakers[0],
+                    'interrupting_speaker': fragment_speakers[i],
+                    'fragment_id': fragment_count,
+                    'context': f"Multiple speakers in fragment {fragment_count}",
+                    'speech_context': speech_text[:150],
+                    'topics_discussed': [zaak['label'] for zaak in activity_zaken]
+                }
+                interruptions.append(interruption)
+    
+    # Analyze speaker sequence across fragments for interruption patterns
+    if len(speaker_sequence) >= 3:
+        for i in range(1, len(speaker_sequence) - 1):
+            current = speaker_sequence[i]
+            prev_speaker = speaker_sequence[i-1]
+            next_speaker = speaker_sequence[i+1] if i+1 < len(speaker_sequence) else None
+            
+            # Pattern: A speaks, B interrupts, A responds
+            if (prev_speaker['persoon_id'] and current['persoon_id'] and 
+                prev_speaker['persoon_id'] != current['persoon_id']):
+                
+                # Check if previous speaker returns (indicating a response to interruption)
+                if (next_speaker and next_speaker['persoon_id'] == prev_speaker['persoon_id']):
+                    interruption = {
+                        'type': 'interruption_with_response',
+                        'original_speaker': prev_speaker,
+                        'interrupting_speaker': current,
+                        'responding_speaker': next_speaker,
+                        'sequence_position': i,
+                        'context': f"{prev_speaker['name']} interrupted by {current['name']}, then responds",
+                        'topics_discussed': [zaak['label'] for zaak in activity_zaken],
+                        'interruption_length': current['speech_length']
+                    }
+                    interruptions.append(interruption)
+                else:
+                    # Simple interruption without clear response
+                    interruption = {
+                        'type': 'simple_interruption',
+                        'original_speaker': prev_speaker,
+                        'interrupting_speaker': current,
+                        'sequence_position': i,
+                        'context': f"{prev_speaker['name']} interrupted by {current['name']}",
+                        'topics_discussed': [zaak['label'] for zaak in activity_zaken],
+                        'interruption_length': current['speech_length']
+                    }
+                    interruptions.append(interruption)
+    
+    return interruptions
+
+
+def analyze_interruption_patterns(all_interruptions: List[dict]) -> dict:
+    """
+    Analyze interruption patterns to identify trends and key players.
+    """
+    if not all_interruptions:
+        return {}
+    
+    # Who interrupts whom most
+    interruption_pairs = {}
+    for interruption in all_interruptions:
+        if interruption['interrupting_speaker']['persoon_id'] and interruption['original_speaker']['persoon_id']:
+            interrupter = interruption['interrupting_speaker']['name']
+            interrupted = interruption['original_speaker']['name']
+            pair_key = f"{interrupter} → {interrupted}"
+            
+            if pair_key not in interruption_pairs:
+                interruption_pairs[pair_key] = {
+                    'count': 0,
+                    'interrupter': interrupter,
+                    'interrupted': interrupted,
+                    'topics': set(),
+                    'examples': []
+                }
+            
+            interruption_pairs[pair_key]['count'] += 1
+            interruption_pairs[pair_key]['topics'].update(interruption['topics_discussed'])
+            interruption_pairs[pair_key]['examples'].append(interruption)
+    
+    # Most frequent interrupters
+    interrupter_counts = {}
+    interrupted_counts = {}
+    
+    for interruption in all_interruptions:
+        if interruption['interrupting_speaker']['persoon_id']:
+            interrupter = interruption['interrupting_speaker']['name']
+            interrupter_counts[interrupter] = interrupter_counts.get(interrupter, 0) + 1
+        
+        if interruption['original_speaker']['persoon_id']:
+            interrupted = interruption['original_speaker']['name']
+            interrupted_counts[interrupted] = interrupted_counts.get(interrupted, 0) + 1
+    
+    # Topics that generate most interruptions
+    topic_interruption_counts = {}
+    for interruption in all_interruptions:
+        for topic in interruption['topics_discussed']:
+            if topic not in topic_interruption_counts:
+                topic_interruption_counts[topic] = {
+                    'count': 0,
+                    'interruption_events': []
+                }
+            topic_interruption_counts[topic]['count'] += 1
+            topic_interruption_counts[topic]['interruption_events'].append(interruption)
+    
+    # Response patterns (who responds to interruptions)
+    response_patterns = {}
+    for interruption in all_interruptions:
+        if interruption['type'] == 'interruption_with_response':
+            responder = interruption['responding_speaker']['name']
+            interrupter = interruption['interrupting_speaker']['name']
+            response_key = f"{responder} responds to {interrupter}"
+            
+            if response_key not in response_patterns:
+                response_patterns[response_key] = {
+                    'count': 0,
+                    'responder': responder,
+                    'interrupter': interrupter,
+                    'topics': set()
+                }
+            
+            response_patterns[response_key]['count'] += 1
+            response_patterns[response_key]['topics'].update(interruption['topics_discussed'])
+    
+    return {
+        'total_interruptions': len(all_interruptions),
+        'interruption_pairs': dict(sorted(interruption_pairs.items(), key=lambda x: x[1]['count'], reverse=True)),
+        'most_frequent_interrupters': dict(sorted(interrupter_counts.items(), key=lambda x: x[1], reverse=True)),
+        'most_interrupted_speakers': dict(sorted(interrupted_counts.items(), key=lambda x: x[1], reverse=True)),
+        'topics_causing_interruptions': dict(sorted(topic_interruption_counts.items(), key=lambda x: x[1]['count'], reverse=True)),
+        'response_patterns': dict(sorted(response_patterns.items(), key=lambda x: x[1]['count'], reverse=True)),
+        'interruption_types': {
+            'fragment_interruptions': len([i for i in all_interruptions if i['type'] == 'fragment_interruption']),
+            'simple_interruptions': len([i for i in all_interruptions if i['type'] == 'simple_interruption']),
+            'interruptions_with_response': len([i for i in all_interruptions if i['type'] == 'interruption_with_response'])
+        }
+    }
+
+# ---------------------------------------------------------------------------
 # Re-use fuzzy-name utilities from the dedicated speaker-matching test to keep
 # behaviour identical and avoid code drift.
 try:
@@ -473,6 +830,12 @@ def test_sample_vlos_files_agendapunt_matching():
     activity_speakers = {}         # activity_id -> list of speakers
     activity_zaken = {}            # activity_id -> list of zaken/dossiers
 
+    # NEW: Interruption tracking
+    all_interruptions = []         # List of all interruption events across activities
+
+    # NEW: Voting tracking
+    all_voting_events = []         # List of all voting events across activities
+
     for xml_path in xml_files:
         print('\n' + '=' * 80)
         print(f'Processing XML file: {xml_path}')
@@ -543,14 +906,10 @@ def test_sample_vlos_files_agendapunt_matching():
         for xml_act in vergadering_el.findall('vlos:activiteit', NS):
             total_xml_acts += 1
             file_xml_count += 1
-            xml_id = xml_act.get('objectid')
+            xml_id = xml_act.get('objectid')  # Keep for debugging, but don't use as key
             xml_soort = xml_act.get('soort')
             xml_titel = xml_act.findtext('vlos:titel', default='', namespaces=NS)
             xml_onderwerp = xml_act.findtext('vlos:onderwerp', default='', namespaces=NS)
-
-            # Initialize tracking for this activity
-            activity_speakers[xml_id] = []
-            activity_zaken[xml_id] = []
 
             xml_start = parse_xml_datetime(
                 xml_act.findtext('vlos:aanvangstijd', default=None, namespaces=NS)
@@ -690,6 +1049,9 @@ def test_sample_vlos_files_agendapunt_matching():
                 )
                 total_matched_acts += 1
                 file_match_count += 1
+                
+                # Use API ID as the key for tracking (not VLOS xml_id)
+                api_activity_id = best_match.id
             else:
                 print('    ❌ No strong match found')
                 unmatched_acts.append({
@@ -698,6 +1060,12 @@ def test_sample_vlos_files_agendapunt_matching():
                     'titel': xml_titel,
                     'best_score': best_score,
                 })
+                # Use fallback key for unmatched activities
+                api_activity_id = f"unmatched_{xml_id}"
+
+            # Initialize tracking for this activity using API ID (not VLOS xml_id)
+            activity_speakers[api_activity_id] = []
+            activity_zaken[api_activity_id] = []
 
             # ------------------------------------------------------------------
             # SPEAKER PROCESSING – map <spreker> elements to TK-API Personen
@@ -740,13 +1108,13 @@ def test_sample_vlos_files_agendapunt_matching():
                             'name': f"{matched.roepnaam or matched.voornaam} {matched.achternaam}",
                             'speech_text': speech_text[:200],  # Keep some context
                         }
-                        activity_speakers[xml_id].append(speaker_info)
+                        activity_speakers[api_activity_id].append(speaker_info)
                         
                         # Update speaker->activity mapping
                         if matched.id not in speaker_activity_map:
                             speaker_activity_map[matched.id] = []
                         speaker_activity_map[matched.id].append({
-                            'activity_id': xml_id,
+                            'activity_id': api_activity_id,  # Use API ID, not VLOS xml_id
                             'activity_title': xml_titel,
                             'speech_preview': speech_text[:100]
                         })
@@ -800,26 +1168,26 @@ def test_sample_vlos_files_agendapunt_matching():
                         'stuknr': stuknr,
                         'titel': zaak_titel
                     }
-                    activity_zaken[xml_id].append(zaak_info)
+                    activity_zaken[api_activity_id].append(zaak_info)
                     
                     # Update zaak->activity mapping
                     if zaak_obj.id not in zaak_activity_map:
                         zaak_activity_map[zaak_obj.id] = []
                     zaak_activity_map[zaak_obj.id].append({
-                        'activity_id': xml_id,
+                        'activity_id': api_activity_id,  # Use API ID, not VLOS xml_id
                         'activity_title': xml_titel,
                         'zaak_title': zaak_titel
                     })
                     
                     # Create connections between speakers and this zaak within this activity
-                    for speaker_info in activity_speakers[xml_id]:
+                    for speaker_info in activity_speakers[api_activity_id]:
                         connection = {
                             'persoon': speaker_info['persoon'],
                             'persoon_name': speaker_info['name'],
                             'zaak_object': zaak_obj,
                             'zaak_type': zaak_type,
                             'zaak_label': zaak_label,
-                            'activity_id': xml_id,
+                            'activity_id': api_activity_id,  # Use API ID, not VLOS xml_id
                             'activity_title': xml_titel,
                             'context': f"Spoke in activity about {zaak_titel or dossiernr}",
                             'speech_preview': speaker_info['speech_text']
@@ -856,7 +1224,7 @@ def test_sample_vlos_files_agendapunt_matching():
                             'zaak_object': zaak_obj,
                             'zaak_type': zaak_type,
                             'zaak_label': zaak_label,
-                            'activity_id': xml_id,
+                            'activity_id': api_activity_id,  # Use API ID, not VLOS xml_id
                             'activity_title': xml_titel,
                             'context': f"Directly linked to {zaak_titel or dossiernr}",
                             'speech_preview': f"[Direct zaak speaker link - no speech text]"
@@ -893,6 +1261,49 @@ def test_sample_vlos_files_agendapunt_matching():
                             unmatched_doc_labels.append(f"{dossiernr}:{stuknr}")
 
                         print(f"                • Document: {stuknr} → {doc_label}")
+
+            # ------------------------------------------------------------------
+            # VOTING ANALYSIS – detect fractie voting patterns in this activity  
+            # ------------------------------------------------------------------
+            if activity_zaken[api_activity_id]:
+                # Only analyze voting if we have topics for context
+                activity_voting_events = analyze_voting_in_activity(xml_act, activity_zaken[api_activity_id])
+                
+                if activity_voting_events:
+                    all_voting_events.extend(activity_voting_events)
+                    print(f"        📊 Detected {len(activity_voting_events)} voting events in this activity")
+                    
+                    # Show voting summary for debugging
+                    for i, vote_event in enumerate(activity_voting_events[:2], 1):  # Show max 2 examples
+                        voor_count = len(vote_event['vote_breakdown'].get('voor', []))
+                        tegen_count = len(vote_event['vote_breakdown'].get('tegen', []))
+                        total_votes = vote_event['total_votes']
+                        print(f"            • Vote {i}: {vote_event['titel']} → Voor: {voor_count}, Tegen: {tegen_count}/{total_votes}")
+                        if vote_event['topics_discussed']:
+                            print(f"              Topics: {', '.join(vote_event['topics_discussed'][:2])}")
+
+            # ------------------------------------------------------------------
+            # INTERRUPTION ANALYSIS – detect speaker interruption patterns in this activity
+            # ------------------------------------------------------------------
+            if activity_speakers[api_activity_id] and activity_zaken[api_activity_id]:
+                # Only analyze interruptions if we have both speakers and topics for context
+                activity_interruptions = detect_interruptions_in_activity(
+                    xml_act, activity_speakers[api_activity_id], activity_zaken[api_activity_id]
+                )
+                
+                if activity_interruptions:
+                    all_interruptions.extend(activity_interruptions)
+                    print(f"        🗣️ Detected {len(activity_interruptions)} interruption events in this activity")
+                    
+                    # Show a sample interruption for debugging
+                    for i, interruption in enumerate(activity_interruptions[:2], 1):  # Show max 2 examples
+                        if interruption['type'] == 'interruption_with_response':
+                            print(f"            • Interruption {i}: {interruption['original_speaker']['name']} → "
+                                  f"{interruption['interrupting_speaker']['name']} → "
+                                  f"{interruption['responding_speaker']['name']} (topics: {', '.join(interruption['topics_discussed'][:2])})")
+                        else:
+                            print(f"            • Interruption {i}: {interruption['original_speaker']['name']} → "
+                                  f"{interruption['interrupting_speaker']['name']} (topics: {', '.join(interruption['topics_discussed'][:2])})")
 
         print(f'File summary: matched {file_match_count}/{file_xml_count} activiteiten')
         print('-' * 80)
@@ -1041,10 +1452,204 @@ def test_sample_vlos_files_agendapunt_matching():
         if len(speaker_zaak_connections) > 5:
             print(f"\n    ... and {len(speaker_zaak_connections) - 5} more connections")
     
+    # ============================================================================
+    # NEW: Parliamentary Interruption Analysis - "Who Interrupts Who When Talking About What"
+    # ============================================================================
+    
+    print(f"\n{'='*80}")
+    print(f"🗣️ PARLIAMENTARY INTERRUPTION ANALYSIS")
+    print(f"{'='*80}")
+    
+    if all_interruptions:
+        interruption_patterns = analyze_interruption_patterns(all_interruptions)
+        
+        print(f"📊 Total interruption events detected: {interruption_patterns['total_interruptions']}")
+        print(f"📈 Interruption breakdown:")
+        for int_type, count in interruption_patterns['interruption_types'].items():
+            print(f"    • {int_type.replace('_', ' ').title()}: {count}")
+        
+        # Top interrupters
+        if interruption_patterns['most_frequent_interrupters']:
+            print(f"\n--- TOP INTERRUPTERS (Most Disruptive Speakers) ---")
+            for i, (interrupter, count) in enumerate(list(interruption_patterns['most_frequent_interrupters'].items())[:10], 1):
+                print(f"  {i:2d}. {interrupter}: {count} interruptions")
+        
+        # Most interrupted speakers  
+        if interruption_patterns['most_interrupted_speakers']:
+            print(f"\n--- MOST INTERRUPTED SPEAKERS ---")
+            for i, (interrupted, count) in enumerate(list(interruption_patterns['most_interrupted_speakers'].items())[:10], 1):
+                print(f"  {i:2d}. {interrupted}: interrupted {count} times")
+        
+        # Specific interruption pairs (who interrupts whom most)
+        if interruption_patterns['interruption_pairs']:
+            print(f"\n--- MOST FREQUENT INTERRUPTION PAIRS ---")
+            for i, (pair, data) in enumerate(list(interruption_patterns['interruption_pairs'].items())[:10], 1):
+                topics_str = ', '.join(list(data['topics'])[:3])
+                if len(data['topics']) > 3:
+                    topics_str += f" (+{len(data['topics'])-3} more)"
+                print(f"  {i:2d}. {pair}: {data['count']} times")
+                print(f"       Topics: {topics_str}")
+        
+        # Topics that generate most interruptions
+        if interruption_patterns['topics_causing_interruptions']:
+            print(f"\n--- TOPICS GENERATING MOST INTERRUPTIONS ---")
+            for i, (topic, data) in enumerate(list(interruption_patterns['topics_causing_interruptions'].items())[:10], 1):
+                # Clean up topic display
+                topic_display = topic.replace('[FALLBACK]', '').strip()
+                print(f"  {i:2d}. {topic_display}: {data['count']} interruptions")
+        
+        # Response patterns  
+        if interruption_patterns['response_patterns']:
+            print(f"\n--- RESPONSE PATTERNS (Who Responds to Interruptions) ---")
+            for i, (response, data) in enumerate(list(interruption_patterns['response_patterns'].items())[:10], 1):
+                print(f"  {i:2d}. {response}: {data['count']} times")
+        
+        # Detailed examples of interruption dynamics
+        print(f"\n--- DETAILED INTERRUPTION EXAMPLES ---")
+        interesting_interruptions = [
+            interruption for interruption in all_interruptions 
+            if interruption['type'] == 'interruption_with_response' and 
+            interruption['topics_discussed']
+        ][:3]  # Show top 3 most complex examples
+        
+        if interesting_interruptions:
+            for i, interruption in enumerate(interesting_interruptions, 1):
+                print(f"\n  Example {i}: Parliamentary Debate Dynamics")
+                print(f"    🎯 Topics being discussed: {', '.join(interruption['topics_discussed'][:2])}")
+                print(f"    🗣️ Original speaker: {interruption['original_speaker']['name']}")
+                print(f"    ⚡ Interrupted by: {interruption['interrupting_speaker']['name']}")
+                print(f"    💬 Interruption length: {interruption['interruption_length']} characters")
+                print(f"    🔄 Response by: {interruption['responding_speaker']['name']}")
+                print(f"    📍 Context: {interruption['context']}")
+        else:
+            # Show simpler interruptions if no complex ones found
+            simple_examples = [i for i in all_interruptions if i['topics_discussed']][:3]
+            for i, interruption in enumerate(simple_examples, 1):
+                print(f"\n  Example {i}: {interruption['type'].replace('_', ' ').title()}")
+                print(f"    🎯 Topics: {', '.join(interruption['topics_discussed'][:2])}")
+                print(f"    🗣️ {interruption['original_speaker']['name']} ⚡ {interruption['interrupting_speaker']['name']}")
+                print(f"    📍 {interruption['context']}")
+    else:
+        print("📝 No interruption patterns detected in the sample data.")
+        print("💡 This could indicate:")
+        print("    • Very formal debate structure with minimal interruptions")  
+        print("    • Limited speaker interactions in the sample")
+        print("    • Activities with single speakers or clear turn-taking")
+    
+    # ============================================================================
+    # NEW: Parliamentary Voting Analysis - "Who Voted How On What Topics"
+    # ============================================================================
+    
+    print(f"\n{'='*80}")
+    print(f"📊 PARLIAMENTARY VOTING ANALYSIS")
+    print(f"{'='*80}")
+    
+    if all_voting_events:
+        voting_patterns = analyze_voting_patterns(all_voting_events)
+        
+        print(f"🗳️  Total voting events: {voting_patterns['total_voting_events']}")
+        print(f"📈 Total individual fractie votes: {voting_patterns['total_individual_votes']}")
+        
+        # Overall vote distribution
+        print(f"\n--- OVERALL VOTE DISTRIBUTION ---")
+        vote_dist = voting_patterns['vote_type_distribution']
+        total_votes = sum(vote_dist.values())
+        if total_votes > 0:
+            for vote_type, count in vote_dist.items():
+                percentage = (count / total_votes) * 100
+                print(f"  • {vote_type.title()}: {count} votes ({percentage:.1f}%)")
+        
+        # Fractie voting behavior
+        if voting_patterns['fractie_vote_counts']:
+            print(f"\n--- FRACTIE VOTING BEHAVIOR ---")
+            for i, (fractie, data) in enumerate(list(voting_patterns['fractie_vote_counts'].items())[:15], 1):
+                voor_pct = (data['voor'] / data['total'] * 100) if data['total'] > 0 else 0
+                tegen_pct = (data['tegen'] / data['total'] * 100) if data['total'] > 0 else 0
+                print(f"  {i:2d}. {fractie}: {data['total']} votes → Voor: {voor_pct:.1f}%, Tegen: {tegen_pct:.1f}%")
+        
+        # Most supportive fracties (highest "Voor" percentage)
+        if voting_patterns['fractie_alignment']:
+            print(f"\n--- MOST SUPPORTIVE FRACTIES (by Voor percentage) ---")
+            for i, (fractie, data) in enumerate(list(voting_patterns['fractie_alignment'].items())[:10], 1):
+                print(f"  {i:2d}. {fractie}: {data['voor_percentage']:.1f}% Voor votes ({data['total_votes']} total)")
+        
+        # Unanimous topics
+        if voting_patterns['unanimous_topics']:
+            print(f"\n--- UNANIMOUS/HIGH CONSENSUS TOPICS ---")
+            for i, (topic, data) in enumerate(list(voting_patterns['unanimous_topics'].items())[:10], 1):
+                topic_display = topic.replace('[FALLBACK]', '').strip()
+                consensus = data['consensus_level']
+                votes = data['total_votes']
+                print(f"  {i:2d}. {topic_display}: {consensus:.1f}% consensus ({votes} votes)")
+        
+        # Controversial topics
+        if voting_patterns['most_controversial_topics']:
+            print(f"\n--- MOST CONTROVERSIAL TOPICS (Low Consensus) ---")
+            for i, (topic, data) in enumerate(list(voting_patterns['most_controversial_topics'].items())[:10], 1):
+                topic_display = topic.replace('[FALLBACK]', '').strip()
+                consensus = data['consensus_level']
+                votes = data['total_votes']
+                voor_fracties = ', '.join(data['votes']['voor'][:3])
+                tegen_fracties = ', '.join(data['votes']['tegen'][:3])
+                print(f"  {i:2d}. {topic_display}: {consensus:.1f}% consensus ({votes} votes)")
+                if voor_fracties:
+                    print(f"       Voor: {voor_fracties}{'...' if len(data['votes']['voor']) > 3 else ''}")
+                if tegen_fracties:
+                    print(f"       Tegen: {tegen_fracties}{'...' if len(data['votes']['tegen']) > 3 else ''}")
+        
+        # Detailed voting examples
+        print(f"\n--- DETAILED VOTING EXAMPLES ---")
+        interesting_votes = [
+            event for event in all_voting_events 
+            if event['topics_discussed'] and len(event['vote_breakdown']) > 1
+        ][:3]  # Show top 3 most interesting voting examples
+        
+        if interesting_votes:
+            for i, vote_event in enumerate(interesting_votes, 1):
+                print(f"\n  Example {i}: {vote_event['titel']}")
+                print(f"    📋 Topics: {', '.join(vote_event['topics_discussed'][:2])}")
+                print(f"    📊 Result: {vote_event['uitslag']}")
+                
+                # Show vote breakdown
+                for vote_type, fracties in vote_event['vote_breakdown'].items():
+                    if fracties:
+                        print(f"    {vote_type.title()}: {', '.join(fracties[:5])}{'...' if len(fracties) > 5 else ''} ({len(fracties)} total)")
+        else:
+            # Show simpler examples if no complex ones found
+            simple_examples = all_voting_events[:3]
+            for i, vote_event in enumerate(simple_examples, 1):
+                print(f"\n  Example {i}: {vote_event['titel']}")
+                if vote_event['topics_discussed']:
+                    print(f"    📋 Topics: {', '.join(vote_event['topics_discussed'][:2])}")
+                print(f"    📊 Result: {vote_event['uitslag']} ({vote_event['total_votes']} votes)")
+    else:
+        print("📝 No voting events detected in the sample data.")
+        print("💡 This could indicate:")
+        print("    • Sample contains debate/discussion activities without formal votes")
+        print("    • Voting activities might use different XML structures")
+        print("    • Limited voting activities in the time period sampled")
+    
     # List any unmatched activiteiten
     if unmatched_acts:
-        print("\n--- UNMATCHED XML ACTIVITEITEN ---")
+        print(f"\n{'='*80}")
+        print("--- UNMATCHED XML ACTIVITEITEN ---")
         for item in unmatched_acts:
             print(f"{item['file']} :: {item['xml_id']} — \"{item['titel']}\" (best score {item['best_score']:.2f})")
     else:
-        print("\nAll activiteiten matched ✅") 
+        print(f"\n{'='*80}")
+        print("✅ All activiteiten matched successfully!")
+
+
+if __name__ == "__main__":
+    print("🏛️ Starting Enhanced VLOS Analysis with Interruption & Voting Detection")
+    print("=" * 80)
+    test_sample_vlos_files_agendapunt_matching()
+    print("\n🎯 Analysis complete! This test demonstrates:")
+    print("   • Activity matching with fallback logic")
+    print("   • Speaker identification and matching")
+    print("   • Zaak/Dossier linking with fallback")
+    print("   • Speaker-topic connection networks")
+    print("   • Parliamentary interruption analysis")
+    print("   • Parliamentary voting analysis")
+    print("   • Who interrupts who when talking about what")
+    print("   • Who voted how on what topics")
