@@ -3,6 +3,10 @@ Main entry point for the Neo4j TK API Data Loader
 """
 import sys
 
+# Logging setup must come before any prints are emitted
+from pathlib import Path
+from utils.logging_utils import setup_logging
+
 from core.connection.neo4j_connection import Neo4jConnection
 from core.config.seed_enums import seed_enum_nodes
 from core.checkpoint.checkpoint_manager import CheckpointManager
@@ -12,26 +16,9 @@ from core.config.cli_config import (
 )
 from core.loader_manager import execute_all_loaders
 
-# Import anchor loaders (now with decorators)
-from loaders.document_loader import load_documents
-from loaders.zaak_loader import load_zaken, load_zaken_threaded
-from loaders.activiteit_loader import load_activiteiten, load_activiteiten_threaded
-# Note: agendapunten are processed through activiteiten (not standalone)
-from loaders.vergadering_loader import load_vergaderingen
 
-# Import other loaders that are still independent (or might be for now)
-from loaders.persoon_loader import load_personen
-from loaders.fractie_loader import load_fracties
-from loaders.toezegging_loader import load_toezeggingen
-from loaders.actor_loader import load_activiteit_actors # Assuming ActiviteitActor is fetched based on its own date or via Activiteit
-
-# Import common processors only to use utility like clear_processed_ids
-from loaders.processors.common_processors import clear_processed_ids
-
-import argparse
 import traceback
 import inspect
-
 
 # Define the start date for filtering
 SHARED_START_DATE = "2024-01-01"
@@ -102,6 +89,8 @@ def handle_run_management(checkpoint_manager, args, config):
 
 def main():
     """Main entry point for the application"""
+    # Set up logging (console + file)
+    setup_logging(Path("logs"))
     # Parse command line arguments
     parser = create_argument_parser()
     args = parser.parse_args()

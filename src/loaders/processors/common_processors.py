@@ -198,7 +198,7 @@ def process_and_load_verslag(session, driver, verslag_obj: Verslag,
         if xml_content:
             print(f"      - Parsing VLOS XML and loading into Neo4j for Verslag {verslag_obj.id}...")
             # Pass the canonical_api_vergadering_id to the VLOS loader
-            load_vlos_verslag(driver, xml_content, canonical_api_vergadering_id_for_vlos)
+            load_vlos_verslag(driver, xml_content, canonical_api_vergadering_id_for_vlos, verslag_obj.id)
             print(f"      ✔ Successfully initiated VLOS XML processing for Verslag {verslag_obj.id}.")
             # Optional: Add a property to Verslag node indicating its VLOS XML has been processed
             session.run("MATCH (vs:Verslag {id: $id}) SET vs.vlos_xml_processed = true", id=verslag_obj.id)

@@ -1,3 +1,15 @@
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
+def _truncate_props(props: dict, max_len: int = 250) -> str:
+    """Return a shortened string representation of props for logs."""
+    text = str(props)
+    return text if len(text) <= max_len else text[:max_len] + "…"
+
+
 def merge_node(tx, label: str, key: str, props: dict):
     cypher = (
         f"MERGE (n:{label} {{{key}: $key_val}})\n"
@@ -5,17 +17,41 @@ def merge_node(tx, label: str, key: str, props: dict):
     )
     tx.run(cypher, key_val=props[key], props=props)
 
+    # Info-level log so users can follow what gets written
+    logger.info(
+        "Merged node %s(%s=%s) props=%s",
+        label,
+        key,
+        props.get(key),
+        _truncate_props(props),
+    )
 
-def merge_rel(tx,
-              from_label: str, from_key: str, from_val,
-              to_label:   str, to_key:   str, to_val,
-              rel_type:   str):
+
+def merge_rel(
+    tx,
+    from_label: str,
+    from_key: str,
+    from_val,
+    to_label: str,
+    to_key: str,
+    to_val,
+    rel_type: str,
+):
     cypher = (
         f"MATCH (a:{from_label} {{{from_key}: $from_val}})\n"
         f"MATCH (b:{to_label}   {{{to_key}:   $to_val}})\n"
         f"MERGE (a)-[:{rel_type}]->(b)"
     )
     tx.run(cypher, from_val=from_val, to_val=to_val)
+
+    logger.info(
+        "Merged rel (%s)-[:%s]->(%s) with from_val=%s, to_val=%s",
+        from_label,
+        rel_type,
+        to_label,
+        from_val,
+        to_val,
+    )
 
 
 def check_nodes_exist(tx, label: str, key: str, ids: list) -> set:

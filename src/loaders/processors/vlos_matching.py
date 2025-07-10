@@ -79,14 +79,17 @@ def get_candidate_api_activities(session, canonical_vergadering_node: Neo4jNode)
     query = """
     MATCH (verg:Vergadering {id: $vergadering_id})
     OPTIONAL MATCH (verg)-[:HAS_AGENDAPUNT]->(ap:Agendapunt)<-[:HAS_AGENDAPUNT]-(act_via_ap:Activiteit)
-    WITH verg, collect(DISTINCT act_via_ap) AS activities_from_agendapunten
+    OPTIONAL MATCH (verg)-[:HAS_ACTIVITEIT]->(act_direct:Activiteit)
+    WITH verg,
+         collect(DISTINCT act_via_ap)   +
+         collect(DISTINCT act_direct)   AS activities_linked
     OPTIONAL MATCH (act_by_time:Activiteit)
     WHERE verg.begin IS NOT NULL AND verg.einde IS NOT NULL
       AND act_by_time.begin >= verg.begin 
       AND act_by_time.einde <= verg.einde 
-    WITH activities_from_agendapunten, 
+    WITH activities_linked,
          [act IN collect(DISTINCT act_by_time) WHERE act IS NOT NULL] AS activities_by_time
-    WITH [act IN activities_from_agendapunten WHERE act IS NOT NULL] + activities_by_time AS all_acts_list
+    WITH [act IN activities_linked WHERE act IS NOT NULL] + activities_by_time AS all_acts_list
     UNWIND all_acts_list AS act_node
     RETURN DISTINCT act_node.id AS id, act_node.soort_api AS soort, act_node.onderwerp AS onderwerp,
            act_node.begin AS begin, act_node.einde AS einde
@@ -115,9 +118,9 @@ def calculate_vlos_activity_match_score(xml_activity_data: Dict[str, Any], api_a
     start_time = xml_activity_data.get('start_time')
     end_time = xml_activity_data.get('end_time')
     
-    # Time matching
-    api_start = xml_activity_data.get('api_start') if 'api_start' in xml_activity_data else None
-    api_end = xml_activity_data.get('api_end') if 'api_end' in xml_activity_data else None
+    # Time matching – use begin/end from api_activity dict
+    api_start = api_activity.get('begin')
+    api_end = api_activity.get('einde')
     time_score, time_reason = evaluate_vlos_time_match(start_time, end_time, api_start, api_end)
     score += time_score
     if time_score > 0:

@@ -78,8 +78,8 @@ def execute_all_loaders(
     # Define loader sequence with their configurations
     loaders = [
         # Core entity loaders
-        # {"name": "personen", "func": load_personen, "args": (conn,), "kwargs": {}},
-        # {"name": "fracties", "func": load_fracties, "args": (conn,), "kwargs": {}},
+        {"name": "personen", "func": load_personen, "args": (conn,), "kwargs": {}},
+        {"name": "fracties", "func": load_fracties, "args": (conn,), "kwargs": {}},
         # Main data loaders (order matters due to relationships)
         {
             "name": "activiteiten",

@@ -94,7 +94,7 @@ vlos_verslag_loader_instance = VlosVerslagLoader()
 loader_registry.register(vlos_verslag_loader_instance)
 
 
-def load_vlos_verslag(driver, xml_content: str, canonical_api_vergadering_id: str):
+def load_vlos_verslag(driver, xml_content: str, canonical_api_vergadering_id: str, api_verslag_id: str | None = None):
     """
     Main function to process VLOS XML content and create Neo4j structure.
     
@@ -149,7 +149,7 @@ def load_vlos_verslag(driver, xml_content: str, canonical_api_vergadering_id: st
                 api_activities = []
             
             # Process main document structure
-            _process_vlos_document_structure(session, root, canonical_vergadering_node, api_activities)
+            _process_vlos_document_structure(session, root, canonical_vergadering_node, api_activities, api_verslag_id)
             
             # Match VLOS speakers to Persoon nodes
             print("🔗 Matching VLOS speakers to Persoon nodes...")
@@ -194,7 +194,7 @@ def _analyze_xml_structure(element: ET.Element, max_depth: int = 2, current_dept
             print(f"{prefix}└─ Text content: {text_content[:50]}{'...' if len(text_content) > 50 else ''}")
 
 
-def _process_vlos_document_structure(session, root: ET.Element, canonical_vergadering_node, api_activities):
+def _process_vlos_document_structure(session, root: ET.Element, canonical_vergadering_node, api_activities, api_verslag_id: str | None = None):
     """Process the main VLOS document structure"""
     
     # Create main VLOS document node
@@ -210,6 +210,12 @@ def _process_vlos_document_structure(session, root: ET.Element, canonical_vergad
     # Link to Vergadering
     session.execute_write(merge_rel, 'Vergadering', 'id', canonical_vergadering_node['id'],
                           'VlosDocument', 'id', doc_id, 'HAS_VLOS_DOCUMENT')
+
+    # Also link to the API Verslag node if provided
+    if api_verslag_id:
+        session.execute_write(merge_node, 'Verslag', 'id', {'id': api_verslag_id})
+        session.execute_write(merge_rel, 'Verslag', 'id', api_verslag_id,
+                              'VlosDocument', 'id', doc_id, 'IS_VLOS_FOR')
     
     # Process the actual XML structure - look for vergadering elements (the real structure)
     sections_processed = 0
@@ -764,6 +770,8 @@ def _process_vlos_section(session, section_elem: ET.Element, parent_id: str,
 
 
 # Backward compatibility function
-def load_vlos_verslag_original(driver, xml_content: str, canonical_api_vergadering_id: str):
-    """Original load_vlos_verslag function for backward compatibility."""
-    return load_vlos_verslag(driver, xml_content, canonical_api_vergadering_id)
+def load_vlos_verslag_original(driver, xml_content: str, canonical_api_vergadering_id: str, api_verslag_id: str | None = None):
+    """
+    Original load_vlos_verslag function for backward compatibility.
+    """
+    return load_vlos_verslag(driver, xml_content, canonical_api_vergadering_id, api_verslag_id)
