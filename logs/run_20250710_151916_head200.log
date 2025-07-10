@@ -1,0 +1,200 @@
+2025-07-10 15:19:16,269 [INFO] Logs are being written to logs/run_20250710_151916.log
+2025-07-10 15:19:16,270 [INFO] 🚀 Started new run: run_20250710_151916
+2025-07-10 15:19:16,270 [INFO] 📋 Saved configuration: start_date=2025-07-01, threaded=True (workers=10), overwrite=True
+2025-07-10 15:19:16,270 [INFO] 
+📊 Current run summary:
+2025-07-10 15:19:16,270 [INFO]    Run ID: run_20250710_151916
+2025-07-10 15:19:16,270 [INFO]    Status: running
+2025-07-10 15:19:16,270 [INFO]    Configuration: start_date=2025-07-01, threaded=True (workers=10), overwrite=True
+2025-07-10 15:19:16,270 [INFO] 
+🚀 Processing data load for items from 2025-07-01 onwards.
+2025-07-10 15:19:16,270 [INFO] 📋 Note: Agendapunten are processed through Activiteiten (hierarchical relationship)
+2025-07-10 15:19:16,270 [INFO] 🧵 Using threaded processing with 10 workers for activiteiten
+2025-07-10 15:19:16,270 [INFO] 🧵 Using threaded processing with 10 workers for zaken
+2025-07-10 15:19:16,270 [INFO] 🔄 Overwrite mode enabled - will process all items regardless of existing data
+2025-07-10 15:19:16,270 [INFO] 
+🌱 Seeding enum nodes...
+2025-07-10 15:19:16,320 [INFO] Merged node ZaakSoort(key=AMENDEMENT) props={'key': 'AMENDEMENT', 'prefLabel': 'Amendement'}
+2025-07-10 15:19:16,333 [INFO] Merged node ZaakSoort(key=ARTIKELEN_WETSVOORSTEL) props={'key': 'ARTIKELEN_WETSVOORSTEL', 'prefLabel': 'Artikelen/onderdelen (wetsvoorstel)'}
+2025-07-10 15:19:16,336 [INFO] Merged node ZaakSoort(key=BEGROTING) props={'key': 'BEGROTING', 'prefLabel': 'Begroting'}
+2025-07-10 15:19:16,340 [INFO] Merged node ZaakSoort(key=BRIEF_COMMISSIE) props={'key': 'BRIEF_COMMISSIE', 'prefLabel': 'Brief commissie'}
+2025-07-10 15:19:16,344 [INFO] Merged node ZaakSoort(key=BRIEF_EUROPESE_COMMISSIE) props={'key': 'BRIEF_EUROPESE_COMMISSIE', 'prefLabel': 'Brief Europese Commissie'}
+2025-07-10 15:19:16,347 [INFO] Merged node ZaakSoort(key=BRIEF_KAMER) props={'key': 'BRIEF_KAMER', 'prefLabel': 'Brief Kamer'}
+2025-07-10 15:19:16,351 [INFO] Merged node ZaakSoort(key=BRIEF_REGERING) props={'key': 'BRIEF_REGERING', 'prefLabel': 'Brief regering'}
+2025-07-10 15:19:16,354 [INFO] Merged node ZaakSoort(key=BRIEF_LID) props={'key': 'BRIEF_LID', 'prefLabel': 'Brief van lid/fractie/commissie'}
+2025-07-10 15:19:16,358 [INFO] Merged node ZaakSoort(key=EU_VOORSTEL) props={'key': 'EU_VOORSTEL', 'prefLabel': 'EU-voorstel'}
+2025-07-10 15:19:16,362 [INFO] Merged node ZaakSoort(key=INITIATIEF_NOTA) props={'key': 'INITIATIEF_NOTA', 'prefLabel': 'Initiatiefnota'}
+2025-07-10 15:19:16,366 [INFO] Merged node ZaakSoort(key=INITIATIEF_WETGEVING) props={'key': 'INITIATIEF_WETGEVING', 'prefLabel': 'Initiatiefwetgeving'}
+2025-07-10 15:19:16,369 [INFO] Merged node ZaakSoort(key=INTERPELLATIE) props={'key': 'INTERPELLATIE', 'prefLabel': 'Interpellatie'}
+2025-07-10 15:19:16,372 [INFO] Merged node ZaakSoort(key=LIJST_EU_VOORSTELLEN) props={'key': 'LIJST_EU_VOORSTELLEN', 'prefLabel': 'Lijst met EU-voorstellen'}
+2025-07-10 15:19:16,380 [INFO] Merged node ZaakSoort(key=MONDELINGE_VRAGEN) props={'key': 'MONDELINGE_VRAGEN', 'prefLabel': 'Mondelinge vragen'}
+2025-07-10 15:19:16,384 [INFO] Merged node ZaakSoort(key=MOTIE) props={'key': 'MOTIE', 'prefLabel': 'Motie'}
+2025-07-10 15:19:16,388 [INFO] Merged node ZaakSoort(key=NATIONALE_OMBUDSMAN) props={'key': 'NATIONALE_OMBUDSMAN', 'prefLabel': 'Nationale ombudsman'}
+2025-07-10 15:19:16,392 [INFO] Merged node ZaakSoort(key=NETWERKVERKENNING) props={'key': 'NETWERKVERKENNING', 'prefLabel': 'Netwerkverkenning'}
+2025-07-10 15:19:16,395 [INFO] Merged node ZaakSoort(key=NOTA_VAN_VERSLAG) props={'key': 'NOTA_VAN_VERSLAG', 'prefLabel': 'Nota n.a.v. het (nader/tweede nader/enz.) verslag'}
+2025-07-10 15:19:16,400 [INFO] Merged node ZaakSoort(key=NOTA_VAN_WIJZIGING) props={'key': 'NOTA_VAN_WIJZIGING', 'prefLabel': 'Nota van wijziging'}
+2025-07-10 15:19:16,403 [INFO] Merged node ZaakSoort(key=OVERIG) props={'key': 'OVERIG', 'prefLabel': 'Overig'}
+2025-07-10 15:19:16,408 [INFO] Merged node ZaakSoort(key=PARLEMENTAIR_ONDERZOEKSRAPPORT) props={'key': 'PARLEMENTAIR_ONDERZOEKSRAPPORT', 'prefLabel': 'Parlementair onderzoeksrapport'}
+2025-07-10 15:19:16,412 [INFO] Merged node ZaakSoort(key=PKB_STRUCTUURVISIE) props={'key': 'PKB_STRUCTUURVISIE', 'prefLabel': 'PKB/Structuurvisie'}
+2025-07-10 15:19:16,416 [INFO] Merged node ZaakSoort(key=POSITION_PAPER) props={'key': 'POSITION_PAPER', 'prefLabel': 'Position paper'}
+2025-07-10 15:19:16,420 [INFO] Merged node ZaakSoort(key=RAPPORT_ALGEMENE_REKENKAMER) props={'key': 'RAPPORT_ALGEMENE_REKENKAMER', 'prefLabel': 'Rapport/brief Algemene Rekenkamer'}
+2025-07-10 15:19:16,423 [INFO] Merged node ZaakSoort(key=RONDVRAAGPUNT_PROCEDUREVERGADERING) props={'key': 'RONDVRAAGPUNT_PROCEDUREVERGADERING', 'prefLabel': 'Rondvraagpunt procedurevergadering'}
+2025-07-10 15:19:16,428 [INFO] Merged node ZaakSoort(key=SCHRIFTELIJKE_VRAGEN) props={'key': 'SCHRIFTELIJKE_VRAGEN', 'prefLabel': 'Schriftelijke vragen'}
+2025-07-10 15:19:16,431 [INFO] Merged node ZaakSoort(key=VERDRAG) props={'key': 'VERDRAG', 'prefLabel': 'Verdrag'}
+2025-07-10 15:19:16,435 [INFO] Merged node ZaakSoort(key=VERZOEK_REGELING_WERKZAAMHEDEN) props={'key': 'VERZOEK_REGELING_WERKZAAMHEDEN', 'prefLabel': 'Verzoek bij regeling van werkzaamheden'}
+2025-07-10 15:19:16,440 [INFO] Merged node ZaakSoort(key=VERZOEK_COMMISIE_REGELING_WERKZAAMHEDEN) props={'key': 'VERZOEK_COMMISIE_REGELING_WERKZAAMHEDEN', 'prefLabel': 'Verzoek bij commissie-regeling van werkzaamheden'}
+2025-07-10 15:19:16,444 [INFO] Merged node ZaakSoort(key=VERZOEKSCHRIFT) props={'key': 'VERZOEKSCHRIFT', 'prefLabel': 'Verzoekschrift'}
+2025-07-10 15:19:16,447 [INFO] Merged node ZaakSoort(key=VOORDRACHTEN_EN_BENOEMINGEN) props={'key': 'VOORDRACHTEN_EN_BENOEMINGEN', 'prefLabel': 'Voordrachten en benoemingen'}
+2025-07-10 15:19:16,450 [INFO] Merged node ZaakSoort(key=WETENSCHAPSTOETS) props={'key': 'WETENSCHAPSTOETS', 'prefLabel': 'Wetenschapstoets'}
+2025-07-10 15:19:16,454 [INFO] Merged node ZaakSoort(key=WETENSCHAPPELIJK_FACTSHEET) props={'key': 'WETENSCHAPPELIJK_FACTSHEET', 'prefLabel': 'Wetenschappelijke factsheet'}
+2025-07-10 15:19:16,458 [INFO] Merged node ZaakSoort(key=WETGEVING) props={'key': 'WETGEVING', 'prefLabel': 'Wetgeving'}
+2025-07-10 15:19:16,462 [INFO] Merged node ZaakSoort(key=WIJZIGING_RVO) props={'key': 'WIJZIGING_RVO', 'prefLabel': 'Wijziging RvO'}
+2025-07-10 15:19:16,467 [INFO] Merged node ZaakSoort(key=WIJZIGING_VOORGESTELD_REGERING) props={'key': 'WIJZIGING_VOORGESTELD_REGERING', 'prefLabel': 'Wijzigingen voorgesteld door de regering'}
+2025-07-10 15:19:16,482 [INFO] Merged node KabinetsAppreciatie(key=OVERGENOMEN) props={'key': 'OVERGENOMEN', 'prefLabel': 'Overgenomen'}
+2025-07-10 15:19:16,491 [INFO] Merged node KabinetsAppreciatie(key=ONTRADEN) props={'key': 'ONTRADEN', 'prefLabel': 'Ontraden'}
+2025-07-10 15:19:16,495 [INFO] Merged node KabinetsAppreciatie(key=ONTRADEN_TENZIJ_GEWIJZGID) props={'key': 'ONTRADEN_TENZIJ_GEWIJZGID', 'prefLabel': 'Ontraden, tenzij gewijzigd'}
+2025-07-10 15:19:16,499 [INFO] Merged node KabinetsAppreciatie(key=OORDEEL_KAMER) props={'key': 'OORDEEL_KAMER', 'prefLabel': 'Oordeel Kamer'}
+2025-07-10 15:19:16,503 [INFO] Merged node KabinetsAppreciatie(key=VERZOCHT_AAN_TE_HOUDEN) props={'key': 'VERZOCHT_AAN_TE_HOUDEN', 'prefLabel': 'Verzocht motie aan te houden'}
+2025-07-10 15:19:16,507 [INFO] Merged node KabinetsAppreciatie(key=GEEN_APPRECIATIE) props={'key': 'GEEN_APPRECIATIE', 'prefLabel': 'Geen (expliciete) appreciatie'}
+2025-07-10 15:19:16,511 [INFO] Merged node KabinetsAppreciatie(key=NIET_BESCHIKBAAR_BIJ_WIJZIGING) props={'key': 'NIET_BESCHIKBAAR_BIJ_WIJZIGING', 'prefLabel': 'Niet beschikbaar bij gewijzigde moties en/of amendementen'}
+2025-07-10 15:19:16,515 [INFO] Merged node KabinetsAppreciatie(key=NIET_BESCHIKBAAR) props={'key': 'NIET_BESCHIKBAAR', 'prefLabel': 'Niet beschikbaar bij moties en/of amendementen vóór 1 april 2019'}
+2025-07-10 15:19:16,519 [INFO] Merged node KabinetsAppreciatie(key=NOG_NIET_BEKEND) props={'key': 'NOG_NIET_BEKEND', 'prefLabel': 'Nog niet bekend'}
+2025-07-10 15:19:16,523 [INFO] Merged node KabinetsAppreciatie(key=NOG_TE_ONTVANGEN) props={'key': 'NOG_TE_ONTVANGEN', 'prefLabel': 'Nog te ontvangen'}
+2025-07-10 15:19:16,527 [INFO] Merged node KabinetsAppreciatie(key=VERZOEK_COMMISIE_REGELING_WERKZAAMHEDEN) props={'key': 'VERZOEK_COMMISIE_REGELING_WERKZAAMHEDEN', 'prefLabel': 'Verzoek bij commissie-regeling van werkzaamheden'}
+2025-07-10 15:19:16,532 [INFO] Merged node KabinetsAppreciatie(key=ONTIJDIG) props={'key': 'ONTIJDIG', 'prefLabel': 'Ontijdig'}
+2025-07-10 15:19:16,537 [INFO] Merged node KabinetsAppreciatie(key=OVERBODIG) props={'key': 'OVERBODIG', 'prefLabel': 'Overbodig'}
+2025-07-10 15:19:16,552 [INFO] Merged node ZaakActorRelatieSoort(key=GERICHT_AAN) props={'key': 'GERICHT_AAN', 'prefLabel': 'Gericht aan'}
+2025-07-10 15:19:16,561 [INFO] Merged node ZaakActorRelatieSoort(key=INDIENER) props={'key': 'INDIENER', 'prefLabel': 'Indiener'}
+2025-07-10 15:19:16,565 [INFO] Merged node ZaakActorRelatieSoort(key=MEDEINDIENER) props={'key': 'MEDEINDIENER', 'prefLabel': 'Medeindiener'}
+2025-07-10 15:19:16,569 [INFO] Merged node ZaakActorRelatieSoort(key=RAPPORTEUR) props={'key': 'RAPPORTEUR', 'prefLabel': 'Rapporteur'}
+2025-07-10 15:19:16,572 [INFO] Merged node ZaakActorRelatieSoort(key=VOLGCOMMISSIE) props={'key': 'VOLGCOMMISSIE', 'prefLabel': 'Volgcommissie'}
+2025-07-10 15:19:16,576 [INFO] Merged node ZaakActorRelatieSoort(key=VOORTOUWCOMMISSIE) props={'key': 'VOORTOUWCOMMISSIE', 'prefLabel': 'Voortouwcommissie'}
+2025-07-10 15:19:16,587 [INFO] Merged node DocumentSoort(key=AANBIEDINGSBRIEF) props={'key': 'AANBIEDINGSBRIEF', 'prefLabel': 'Aanbiedingsbrief'}
+2025-07-10 15:19:16,590 [INFO] Merged node DocumentSoort(key=AANHANGSEL_VAN_DE_HANDELINGEN) props={'key': 'AANHANGSEL_VAN_DE_HANDELINGEN', 'prefLabel': 'Aanhangsel van de Handelingen'}
+2025-07-10 15:19:16,594 [INFO] Merged node DocumentSoort(key=ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE_EN_NADER_RAPPORT) props={'key': 'ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE_EN_NADER_RAPPORT', 'prefLabel': 'Advies Afdeling advisering Raad van State en Nader rapport'}
+2025-07-10 15:19:16,597 [INFO] Merged node DocumentSoort(key=ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE_EN_REACTIE_VAN_DE_INITIATIEFNEMERS) props={'key': 'ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE_EN_REACTIE_VAN_DE_INITIATIEFNEMERS', 'prefLabel': 'Advies Afdeling advisering Raad van State en Reactie van de initiatiefnemer(s)'}
+2025-07-10 15:19:16,599 [INFO] Merged node DocumentSoort(key=ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE) props={'key': 'ADVIES_AFDELING_ADVISERING_RAAD_VAN_STATE', 'prefLabel': 'Advies Afdeling advisering Raad van State'}
+2025-07-10 15:19:16,602 [INFO] Merged node DocumentSoort(key=ADVIES_AAN_PRESIDIUM) props={'key': 'ADVIES_AAN_PRESIDIUM', 'prefLabel': 'Advies aan Presidium'}
+2025-07-10 15:19:16,604 [INFO] Merged node DocumentSoort(key=ADVIES_COMMISSIE) props={'key': 'ADVIES_COMMISSIE', 'prefLabel': 'Advies commissie'}
+2025-07-10 15:19:16,607 [INFO] Merged node DocumentSoort(key=ADVIES_VAN_ANDERE_ADVIESORGANEN) props={'key': 'ADVIES_VAN_ANDERE_ADVIESORGANEN', 'prefLabel': 'Advies van andere adviesorganen'}
+2025-07-10 15:19:16,610 [INFO] Merged node DocumentSoort(key=ADVIESAANVRAAG_AFDELING_ADVISERING_RAAD_VAN_STATE) props={'key': 'ADVIESAANVRAAG_AFDELING_ADVISERING_RAAD_VAN_STATE', 'prefLabel': 'Adviesaanvraag Afdeling advisering Raad van State'}
+2025-07-10 15:19:16,614 [INFO] Merged node DocumentSoort(key=AGENDA_PLENAIRE_VERGADERING) props={'key': 'AGENDA_PLENAIRE_VERGADERING', 'prefLabel': 'Agenda plenaire vergadering'}
+2025-07-10 15:19:16,620 [INFO] Merged node DocumentSoort(key=AGENDA_PROCEDUREVERGADERING) props={'key': 'AGENDA_PROCEDUREVERGADERING', 'prefLabel': 'Agenda procedurevergadering'}
+2025-07-10 15:19:16,624 [INFO] Merged node DocumentSoort(key=AGENDA_STRATEGISCHE_PROCEDUREVERGADERING) props={'key': 'AGENDA_STRATEGISCHE_PROCEDUREVERGADERING', 'prefLabel': 'Agenda strategische procedurevergadering'}
+2025-07-10 15:19:16,634 [INFO] Merged node DocumentSoort(key=AMENDEMENT) props={'key': 'AMENDEMENT', 'prefLabel': 'Amendement'}
+2025-07-10 15:19:16,638 [INFO] Merged node DocumentSoort(key=AMENDEMENT_GEWIJZIGD) props={'key': 'AMENDEMENT_GEWIJZIGD', 'prefLabel': 'Amendement (gewijzigd/nader/vervangend)'}
+2025-07-10 15:19:16,643 [INFO] Merged node DocumentSoort(key=ANTWOORD_SCHRIFTELIJKE_VRAGEN_NADER) props={'key': 'ANTWOORD_SCHRIFTELIJKE_VRAGEN_NADER', 'prefLabel': 'Antwoord schriftelijke vragen (nader)'}
+2025-07-10 15:19:16,647 [INFO] Merged node DocumentSoort(key=ANTWOORD_SCHRIFTELIJKE_VRAGEN) props={'key': 'ANTWOORD_SCHRIFTELIJKE_VRAGEN', 'prefLabel': 'Antwoord schriftelijke vragen'}
+2025-07-10 15:19:16,651 [INFO] Merged node DocumentSoort(key=BEGROTINGSTOELICHTING) props={'key': 'BEGROTINGSTOELICHTING', 'prefLabel': 'Begrotingstoelichting'}
+2025-07-10 15:19:16,681 [INFO] Merged node DocumentSoort(key=BESLUITENLIJST_PROCEDUREVERGADERING) props={'key': 'BESLUITENLIJST_PROCEDUREVERGADERING', 'prefLabel': 'Besluitenlijst procedurevergadering'}
+2025-07-10 15:19:16,685 [INFO] Merged node DocumentSoort(key=BESLUITENLIJST_STRATEGISCHE_PROCEDUREVERGADERING) props={'key': 'BESLUITENLIJST_STRATEGISCHE_PROCEDUREVERGADERING', 'prefLabel': 'Besluitenlijst strategische procedurevergadering'}
+2025-07-10 15:19:16,688 [INFO] Merged node DocumentSoort(key=BIJGEWERKTE_TEKST) props={'key': 'BIJGEWERKTE_TEKST', 'prefLabel': 'Bijgewerkte tekst'}
+2025-07-10 15:19:16,691 [INFO] Merged node DocumentSoort(key=BIJLAGE) props={'key': 'BIJLAGE', 'prefLabel': 'Bijlage'}
+2025-07-10 15:19:16,695 [INFO] Merged node DocumentSoort(key=BRIEF_AFDELING_ADVISERING_RAAD_VAN_STATE) props={'key': 'BRIEF_AFDELING_ADVISERING_RAAD_VAN_STATE', 'prefLabel': 'Brief Afdeling advisering Raad van State'}
+2025-07-10 15:19:16,714 [INFO] Merged node DocumentSoort(key=BRIEF_ALGEMENE_REKENKAMER) props={'key': 'BRIEF_ALGEMENE_REKENKAMER', 'prefLabel': 'Brief Algemene Rekenkamer'}
+2025-07-10 15:19:16,718 [INFO] Merged node DocumentSoort(key=BRIEF_CTIVD) props={'key': 'BRIEF_CTIVD', 'prefLabel': 'Brief CTIVD'}
+2025-07-10 15:19:16,722 [INFO] Merged node DocumentSoort(key=BRIEF_EERSTE_KAMER) props={'key': 'BRIEF_EERSTE_KAMER', 'prefLabel': 'Brief Eerste Kamer'}
+2025-07-10 15:19:16,726 [INFO] Merged node DocumentSoort(key=BRIEF_EUROPESE_COMMISSIE) props={'key': 'BRIEF_EUROPESE_COMMISSIE', 'prefLabel': 'Brief Europese Commissie'}
+2025-07-10 15:19:16,730 [INFO] Merged node DocumentSoort(key=BRIEF_KAMER_AAN_BEWINDSPERSOON) props={'key': 'BRIEF_KAMER_AAN_BEWINDSPERSOON', 'prefLabel': 'Brief Kamer aan bewindspersoon'}
+2025-07-10 15:19:16,734 [INFO] Merged node DocumentSoort(key=BRIEF_KAMER_AAN_DERDE) props={'key': 'BRIEF_KAMER_AAN_DERDE', 'prefLabel': 'Brief Kamer aan derde'}
+2025-07-10 15:19:16,738 [INFO] Merged node DocumentSoort(key=BRIEF_KAMER) props={'key': 'BRIEF_KAMER', 'prefLabel': 'Brief Kamer'}
+2025-07-10 15:19:16,742 [INFO] Merged node DocumentSoort(key=BRIEF_NATIONALE_OMBUDSMAN) props={'key': 'BRIEF_NATIONALE_OMBUDSMAN', 'prefLabel': 'Brief Nationale ombudsman'}
+2025-07-10 15:19:16,746 [INFO] Merged node DocumentSoort(key=BRIEF_PRESIDIUM) props={'key': 'BRIEF_PRESIDIUM', 'prefLabel': 'Brief Presidium'}
+2025-07-10 15:19:16,750 [INFO] Merged node DocumentSoort(key=BRIEF_COMMISSIE_AAN_BEWINDSPERSOON) props={'key': 'BRIEF_COMMISSIE_AAN_BEWINDSPERSOON', 'prefLabel': 'Brief commissie aan bewindspersoon'}
+2025-07-10 15:19:16,754 [INFO] Merged node DocumentSoort(key=BRIEF_COMMISSIE_AAN_DERDE) props={'key': 'BRIEF_COMMISSIE_AAN_DERDE', 'prefLabel': 'Brief commissie aan derde'}
+2025-07-10 15:19:16,758 [INFO] Merged node DocumentSoort(key=BRIEF_COMMISSIE) props={'key': 'BRIEF_COMMISSIE', 'prefLabel': 'Brief commissie'}
+2025-07-10 15:19:16,762 [INFO] Merged node DocumentSoort(key=BRIEF_DERDEN_ORGANISATIE) props={'key': 'BRIEF_DERDEN_ORGANISATIE', 'prefLabel': 'Brief derden (organisatie)'}
+2025-07-10 15:19:16,766 [INFO] Merged node DocumentSoort(key=BRIEF_DERDEN_PARTICULIEREN) props={'key': 'BRIEF_DERDEN_PARTICULIEREN', 'prefLabel': 'Brief derden (particulieren)'}
+2025-07-10 15:19:16,770 [INFO] Merged node DocumentSoort(key=BRIEF_FORMATEUR) props={'key': 'BRIEF_FORMATEUR', 'prefLabel': 'Brief formateur'}
+2025-07-10 15:19:16,775 [INFO] Merged node DocumentSoort(key=BRIEF_INFORMATEUR) props={'key': 'BRIEF_INFORMATEUR', 'prefLabel': 'Brief informateur'}
+2025-07-10 15:19:16,780 [INFO] Merged node DocumentSoort(key=BRIEF_LID_FRACTIE) props={'key': 'BRIEF_LID_FRACTIE', 'prefLabel': 'Brief lid / fractie'}
+2025-07-10 15:19:16,785 [INFO] Merged node DocumentSoort(key=BRIEF_PRESIDENT_HOGE_RAAD) props={'key': 'BRIEF_PRESIDENT_HOGE_RAAD', 'prefLabel': 'Brief president Hoge Raad'}
+2025-07-10 15:19:16,790 [INFO] Merged node DocumentSoort(key=BRIEF_REGERING) props={'key': 'BRIEF_REGERING', 'prefLabel': 'Brief regering'}
+2025-07-10 15:19:16,794 [INFO] Merged node DocumentSoort(key=BRIEF_VERKENNER) props={'key': 'BRIEF_VERKENNER', 'prefLabel': 'Brief verkenner'}
+2025-07-10 15:19:16,798 [INFO] Merged node DocumentSoort(key=BRIEF_VOORZITTER) props={'key': 'BRIEF_VOORZITTER', 'prefLabel': 'Brief Voorzitter'}
+2025-07-10 15:19:16,803 [INFO] Merged node DocumentSoort(key=BRIEVENLIJST_PROCEDUREVERGADERING) props={'key': 'BRIEVENLIJST_PROCEDUREVERGADERING', 'prefLabel': 'Brievenlijst procedurevergadering'}
+2025-07-10 15:19:16,808 [INFO] Merged node DocumentSoort(key=CONVOCATIE_COMMISSIEACTIVITEIT) props={'key': 'CONVOCATIE_COMMISSIEACTIVITEIT', 'prefLabel': 'Convocatie commissieactiviteit'}
+2025-07-10 15:19:16,813 [INFO] Merged node DocumentSoort(key=CONVOCATIE_INBRENG) props={'key': 'CONVOCATIE_INBRENG', 'prefLabel': 'Convocatie inbreng'}
+2025-07-10 15:19:16,818 [INFO] Merged node DocumentSoort(key=EU_VOORSTEL) props={'key': 'EU_VOORSTEL', 'prefLabel': 'EU-voorstel'}
+2025-07-10 15:19:16,823 [INFO] Merged node DocumentSoort(key=EINDTEKST) props={'key': 'EINDTEKST', 'prefLabel': 'Eindtekst'}
+2025-07-10 15:19:16,828 [INFO] Merged node DocumentSoort(key=GELEIDENDE_BRIEF) props={'key': 'GELEIDENDE_BRIEF', 'prefLabel': 'Geleidende brief'}
+2025-07-10 15:19:16,833 [INFO] Merged node DocumentSoort(key=GROENBOEKWITBOEK) props={'key': 'GROENBOEKWITBOEK', 'prefLabel': 'Groenboek/witboek'}
+2025-07-10 15:19:16,838 [INFO] Merged node DocumentSoort(key=INBRENG_VERSLAG_SCHRIFTELIJK_OVERLEG) props={'key': 'INBRENG_VERSLAG_SCHRIFTELIJK_OVERLEG', 'prefLabel': 'Inbreng verslag schriftelijk overleg'}
+2025-07-10 15:19:16,843 [INFO] Merged node DocumentSoort(key=INITIATIEFNOTA) props={'key': 'INITIATIEFNOTA', 'prefLabel': 'Initiatiefnota'}
+2025-07-10 15:19:16,848 [INFO] Merged node DocumentSoort(key=INTERPELLATIEVRAGEN) props={'key': 'INTERPELLATIEVRAGEN', 'prefLabel': 'Interpellatievragen'}
+2025-07-10 15:19:16,853 [INFO] Merged node DocumentSoort(key=JAARVERSLAG) props={'key': 'JAARVERSLAG', 'prefLabel': 'Jaarverslag'}
+2025-07-10 15:19:16,858 [INFO] Merged node DocumentSoort(key=KONINKLIJKE_BOODSCHAP) props={'key': 'KONINKLIJKE_BOODSCHAP', 'prefLabel': 'Koninklijke boodschap'}
+2025-07-10 15:19:16,864 [INFO] Merged node DocumentSoort(key=LIJST_MET_EU_VOORSTELLEN) props={'key': 'LIJST_MET_EU_VOORSTELLEN', 'prefLabel': 'Lijst met EU-voorstellen'}
+2025-07-10 15:19:16,868 [INFO] Merged node DocumentSoort(key=LIJST_VAN_COMMENTAREN) props={'key': 'LIJST_VAN_COMMENTAREN', 'prefLabel': 'Lijst van commentaren'}
+2025-07-10 15:19:16,872 [INFO] Merged node DocumentSoort(key=LIJST_VAN_INGEKOMEN_STUKKEN) props={'key': 'LIJST_VAN_INGEKOMEN_STUKKEN', 'prefLabel': 'Lijst van ingekomen stukken'}
+2025-07-10 15:19:16,876 [INFO] Merged node DocumentSoort(key=LIJST_VAN_VRAGEN_EN_ANTWOORDEN) props={'key': 'LIJST_VAN_VRAGEN_EN_ANTWOORDEN', 'prefLabel': 'Lijst van vragen en antwoorden'}
+2025-07-10 15:19:16,880 [INFO] Merged node DocumentSoort(key=LIJST_VAN_VRAGEN) props={'key': 'LIJST_VAN_VRAGEN', 'prefLabel': 'Lijst van vragen'}
+2025-07-10 15:19:16,882 [INFO] Merged node DocumentSoort(key=MEDEDELING_UITSTEL_ANTWOORD) props={'key': 'MEDEDELING_UITSTEL_ANTWOORD', 'prefLabel': 'Mededeling (uitstel antwoord)'}
+2025-07-10 15:19:16,887 [INFO] Merged node DocumentSoort(key=MEDEDELING) props={'key': 'MEDEDELING', 'prefLabel': 'Mededeling'}
+2025-07-10 15:19:16,891 [INFO] Merged node DocumentSoort(key=MEMORIE_VAN_TOELICHTING_INITIATIEFVOORSTEL) props={'key': 'MEMORIE_VAN_TOELICHTING_INITIATIEFVOORSTEL', 'prefLabel': 'Memorie van toelichting (initiatiefvoorstel)'}
+2025-07-10 15:19:16,895 [INFO] Merged node DocumentSoort(key=MEMORIE_VAN_TOELICHTING) props={'key': 'MEMORIE_VAN_TOELICHTING', 'prefLabel': 'Memorie van toelichting'}
+2025-07-10 15:19:16,899 [INFO] Merged node DocumentSoort(key=MONDELINGE_VRAGEN) props={'key': 'MONDELINGE_VRAGEN', 'prefLabel': 'Mondelinge vragen'}
+2025-07-10 15:19:16,902 [INFO] Merged node DocumentSoort(key=MOTIE_GEWIJZIGDNADER) props={'key': 'MOTIE_GEWIJZIGDNADER', 'prefLabel': 'Motie (gewijzigd/nader)'}
+2025-07-10 15:19:16,906 [INFO] Merged node DocumentSoort(key=MOTIE) props={'key': 'MOTIE', 'prefLabel': 'Motie'}
+2025-07-10 15:19:16,910 [INFO] Merged node DocumentSoort(key=NADER_RAPPORT) props={'key': 'NADER_RAPPORT', 'prefLabel': 'Nader rapport'}
+2025-07-10 15:19:16,914 [INFO] Merged node DocumentSoort(key=NETWERKVERKENNING) props={'key': 'NETWERKVERKENNING', 'prefLabel': 'Netwerkverkenning'}
+2025-07-10 15:19:16,917 [INFO] Merged node DocumentSoort(key=NOTA_NAV_HET_NADERTWEEDE_NADERENZ_VERSLAG) props={'key': 'NOTA_NAV_HET_NADERTWEEDE_NADERENZ_VERSLAG', 'prefLabel': 'Nota n.a.v. het (nader/tweede nader/enz.) verslag'}
+2025-07-10 15:19:16,921 [INFO] Merged node DocumentSoort(key=NOTA_VAN_VERBETERING) props={'key': 'NOTA_VAN_VERBETERING', 'prefLabel': 'Nota van verbetering'}
+2025-07-10 15:19:16,924 [INFO] Merged node DocumentSoort(key=NOTA_VAN_WIJZIGING_INITIATIEFVOORSTEL) props={'key': 'NOTA_VAN_WIJZIGING_INITIATIEFVOORSTEL', 'prefLabel': 'Nota van wijziging (initiatiefvoorstel)'}
+2025-07-10 15:19:16,928 [INFO] Merged node DocumentSoort(key=NOTA_VAN_WIJZIGING) props={'key': 'NOTA_VAN_WIJZIGING', 'prefLabel': 'Nota van wijziging'}
+2025-07-10 15:19:16,931 [INFO] Merged node DocumentSoort(key=NOTA) props={'key': 'NOTA', 'prefLabel': 'Nota'}
+2025-07-10 15:19:16,934 [INFO] Merged node DocumentSoort(key=ONDERZOEKSVOORSTEL) props={'key': 'ONDERZOEKSVOORSTEL', 'prefLabel': 'Onderzoeksvoorstel'}
+2025-07-10 15:19:16,938 [INFO] Merged node DocumentSoort(key=OORSPRONKELIJKE_TEKST) props={'key': 'OORSPRONKELIJKE_TEKST', 'prefLabel': 'Oorspronkelijke tekst'}
+2025-07-10 15:19:16,942 [INFO] Merged node DocumentSoort(key=OVERIG) props={'key': 'OVERIG', 'prefLabel': 'Overig'}
+2025-07-10 15:19:16,945 [INFO] Merged node DocumentSoort(key=OVERIG_OPENBAAR) props={'key': 'OVERIG_OPENBAAR', 'prefLabel': 'Overig (openbaar)'}
+2025-07-10 15:19:16,949 [INFO] Merged node DocumentSoort(key=OVERZICHT_VERZOEKEN_COMMISSIE_REGELING_VAN_WERKZAAMHEDEN) props={'key': 'OVERZICHT_VERZOEKEN_COMMISSIE_REGELING_VAN_WERKZAAMHEDEN', 'prefLabel': 'Overzicht verzoeken commissie-regeling van werkzaamheden'}
+2025-07-10 15:19:16,952 [INFO] Merged node DocumentSoort(key=POSITION_PAPER) props={'key': 'POSITION_PAPER', 'prefLabel': 'Position paper'}
+2025-07-10 15:19:16,956 [INFO] Merged node DocumentSoort(key=PRESENTATIE) props={'key': 'PRESENTATIE', 'prefLabel': 'Presentatie'}
+2025-07-10 15:19:16,960 [INFO] Merged node DocumentSoort(key=RAMING_VAN_DE_UITGAVEN) props={'key': 'RAMING_VAN_DE_UITGAVEN', 'prefLabel': 'Raming van de uitgaven'}
+2025-07-10 15:19:16,964 [INFO] Merged node DocumentSoort(key=RAPPORT_ALGEMENE_REKENKAMER) props={'key': 'RAPPORT_ALGEMENE_REKENKAMER', 'prefLabel': 'Rapport Algemene Rekenkamer'}
+2025-07-10 15:19:16,968 [INFO] Merged node DocumentSoort(key=RAPPORT) props={'key': 'RAPPORT', 'prefLabel': 'Rapport'}
+2025-07-10 15:19:16,974 [INFO] Merged node DocumentSoort(key=REACTIE_INITIATIEFNEMERS) props={'key': 'REACTIE_INITIATIEFNEMERS', 'prefLabel': 'Reactie initiatiefnemer(s)'}
+2025-07-10 15:19:16,978 [INFO] Merged node DocumentSoort(key=SCHRIFTELIJKE_VRAGEN) props={'key': 'SCHRIFTELIJKE_VRAGEN', 'prefLabel': 'Schriftelijke vragen'}
+2025-07-10 15:19:16,982 [INFO] Merged node DocumentSoort(key=SPREKERSLIJST) props={'key': 'SPREKERSLIJST', 'prefLabel': 'Sprekerslijst'}
+2025-07-10 15:19:16,985 [INFO] Merged node DocumentSoort(key=STAFNOTITIE) props={'key': 'STAFNOTITIE', 'prefLabel': 'Stafnotitie'}
+2025-07-10 15:19:16,989 [INFO] Merged node DocumentSoort(key=STEMMINGSLIJST) props={'key': 'STEMMINGSLIJST', 'prefLabel': 'Stemmingslijst'}
+2025-07-10 15:19:16,993 [INFO] Merged node DocumentSoort(key=STEMMINGSUITSLAGEN) props={'key': 'STEMMINGSUITSLAGEN', 'prefLabel': 'Stemmingsuitslagen'}
+2025-07-10 15:19:16,996 [INFO] Merged node DocumentSoort(key=STENOGRAM) props={'key': 'STENOGRAM', 'prefLabel': 'Stenogram'}
+2025-07-10 15:19:17,000 [INFO] Merged node DocumentSoort(key=VERSLAG_INITIATIEFWETSVOORSTEL_NADER) props={'key': 'VERSLAG_INITIATIEFWETSVOORSTEL_NADER', 'prefLabel': 'Verslag (initiatief)wetsvoorstel (nader)'}
+2025-07-10 15:19:17,003 [INFO] Merged node DocumentSoort(key=VERSLAG_COMMISSIE_VERZOEKSCHRIFTEN_EN_DE_BURGERINITIATIEVEN) props={'key': 'VERSLAG_COMMISSIE_VERZOEKSCHRIFTEN_EN_DE_BURGERINITIATIEVEN', 'prefLabel': 'Verslag commissie Verzoekschriften en de Burgerinitiatieven'}
+2025-07-10 15:19:17,007 [INFO] Merged node DocumentSoort(key=VERSLAG_HOUDENDE_EEN_LIJST_VAN_VRAGEN_EN_ANTWOORDEN) props={'key': 'VERSLAG_HOUDENDE_EEN_LIJST_VAN_VRAGEN_EN_ANTWOORDEN', 'prefLabel': 'Verslag houdende een lijst van vragen en antwoorden'}
+2025-07-10 15:19:17,010 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_ALGEMEEN_OVERLEG) props={'key': 'VERSLAG_VAN_EEN_ALGEMEEN_OVERLEG', 'prefLabel': 'Verslag van een algemeen overleg'}
+2025-07-10 15:19:17,014 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_BIJEENKOMST) props={'key': 'VERSLAG_VAN_EEN_BIJEENKOMST', 'prefLabel': 'Verslag van een bijeenkomst'}
+2025-07-10 15:19:17,019 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_COMMISSIEDEBAT) props={'key': 'VERSLAG_VAN_EEN_COMMISSIEDEBAT', 'prefLabel': 'Verslag van een commissiedebat'}
+2025-07-10 15:19:17,023 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_HOORZITTING__RONDETAFELGESPREK) props={'key': 'VERSLAG_VAN_EEN_HOORZITTING__RONDETAFELGESPREK', 'prefLabel': 'Verslag van een hoorzitting / rondetafelgesprek'}
+2025-07-10 15:19:17,027 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_NOTAOVERLEG) props={'key': 'VERSLAG_VAN_EEN_NOTAOVERLEG', 'prefLabel': 'Verslag van een notaoverleg'}
+2025-07-10 15:19:17,031 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_POLITIEKE_DIALOOG) props={'key': 'VERSLAG_VAN_EEN_POLITIEKE_DIALOOG', 'prefLabel': 'Verslag van een politieke dialoog'}
+2025-07-10 15:19:17,034 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_PROCEDUREVERGADERING) props={'key': 'VERSLAG_VAN_EEN_PROCEDUREVERGADERING', 'prefLabel': 'Verslag van een procedurevergadering'}
+2025-07-10 15:19:17,038 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_RAPPORTEUR) props={'key': 'VERSLAG_VAN_EEN_RAPPORTEUR', 'prefLabel': 'Verslag van een rapporteur'}
+2025-07-10 15:19:17,042 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_SCHRIFTELIJK_OVERLEG) props={'key': 'VERSLAG_VAN_EEN_SCHRIFTELIJK_OVERLEG', 'prefLabel': 'Verslag van een schriftelijk overleg'}
+2025-07-10 15:19:17,046 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_WERKBEZOEK) props={'key': 'VERSLAG_VAN_EEN_WERKBEZOEK', 'prefLabel': 'Verslag van een werkbezoek'}
+2025-07-10 15:19:17,050 [INFO] Merged node DocumentSoort(key=VERSLAG_VAN_EEN_WETGEVINGSOVERLEG) props={'key': 'VERSLAG_VAN_EEN_WETGEVINGSOVERLEG', 'prefLabel': 'Verslag van een wetgevingsoverleg'}
+2025-07-10 15:19:17,054 [INFO] Merged node DocumentSoort(key=VERZOEK_OM_REACTIE_BEWINDSPERSOON) props={'key': 'VERZOEK_OM_REACTIE_BEWINDSPERSOON', 'prefLabel': 'Verzoek om reactie bewindspersoon'}
+2025-07-10 15:19:17,057 [INFO] Merged node DocumentSoort(key=VOORDRACHT) props={'key': 'VOORDRACHT', 'prefLabel': 'Voordracht'}
+2025-07-10 15:19:17,062 [INFO] Merged node DocumentSoort(key=VOORLICHTING_AFDELING_ADVISERING_RAAD_VAN_STATE) props={'key': 'VOORLICHTING_AFDELING_ADVISERING_RAAD_VAN_STATE', 'prefLabel': 'Voorlichting Afdeling advisering Raad van State'}
+2025-07-10 15:19:17,065 [INFO] Merged node DocumentSoort(key=VOORSTEL_TOT_WIJZIGING_REGLEMENT_VAN_ORDE) props={'key': 'VOORSTEL_TOT_WIJZIGING_REGLEMENT_VAN_ORDE', 'prefLabel': 'Voorstel tot wijziging Reglement van Orde'}
+2025-07-10 15:19:17,069 [INFO] Merged node DocumentSoort(key=VOORSTEL_VAN_WET_INITIATIEFVOORSTEL) props={'key': 'VOORSTEL_VAN_WET_INITIATIEFVOORSTEL', 'prefLabel': 'Voorstel van wet (initiatiefvoorstel)'}
+2025-07-10 15:19:17,074 [INFO] Merged node DocumentSoort(key=VOORSTEL_VAN_WET_TWEEDE_LEZING) props={'key': 'VOORSTEL_VAN_WET_TWEEDE_LEZING', 'prefLabel': 'Voorstel van wet (tweede lezing)'}
+2025-07-10 15:19:17,076 [INFO] Merged node DocumentSoort(key=VOORSTEL_VAN_WET) props={'key': 'VOORSTEL_VAN_WET', 'prefLabel': 'Voorstel van wet'}
+2025-07-10 15:19:17,078 [INFO] Merged node DocumentSoort(key=VOORTGANGSBEERICHT_AAN_DERDEN) props={'key': 'VOORTGANGSBEERICHT_AAN_DERDEN', 'prefLabel': 'Voortgangsbeericht aan derden'}
+2025-07-10 15:19:17,081 [INFO] Merged node DocumentSoort(key=WETENSCHAPPELIJKE_FACTSHEET) props={'key': 'WETENSCHAPPELIJKE_FACTSHEET', 'prefLabel': 'Wetenschappelijke factsheet'}
+2025-07-10 15:19:17,083 [INFO] Merged node DocumentSoort(key=WETENSCHAPSTOETS) props={'key': 'WETENSCHAPSTOETS', 'prefLabel': 'Wetenschapstoets'}
+2025-07-10 15:19:17,086 [INFO] Merged node DocumentSoort(key=WIJZIGINGEN_VOORGESTELD_DOOR_DE_REGERING) props={'key': 'WIJZIGINGEN_VOORGESTELD_DOOR_DE_REGERING', 'prefLabel': 'Wijzigingen voorgesteld door de regering'}
+2025-07-10 15:19:17,098 [INFO] Merged node ActiviteitSoort(key=AANBIEDING) props={'key': 'AANBIEDING', 'prefLabel': 'Aanbieding'}
+2025-07-10 15:19:17,101 [INFO] Merged node ActiviteitSoort(key=AFSCHEID) props={'key': 'AFSCHEID', 'prefLabel': 'Afscheid'}
+2025-07-10 15:19:17,106 [INFO] Merged node ActiviteitSoort(key=ALGEMEEN_OVERLEG) props={'key': 'ALGEMEEN_OVERLEG', 'prefLabel': 'Algemeen overleg'}
+2025-07-10 15:19:17,108 [INFO] Merged node ActiviteitSoort(key=BEEDIGING) props={'key': 'BEEDIGING', 'prefLabel': 'Beëdiging'}
+2025-07-10 15:19:17,110 [INFO] Merged node ActiviteitSoort(key=BEGROTINGSOVERLEG) props={'key': 'BEGROTINGSOVERLEG', 'prefLabel': 'Begrotingsoverleg'}
+2025-07-10 15:19:17,112 [INFO] Merged node ActiviteitSoort(key=BIJZONDERE_PROCEDURE) props={'key': 'BIJZONDERE_PROCEDURE', 'prefLabel': 'Bijzondere procedure'}
+2025-07-10 15:19:17,114 [INFO] Merged node ActiviteitSoort(key=COMMISSIEDEBAT) props={'key': 'COMMISSIEDEBAT', 'prefLabel': 'Commissiedebat'}
+2025-07-10 15:19:17,116 [INFO] Merged node ActiviteitSoort(key=CONSTITUERENDE_VERGADERING) props={'key': 'CONSTITUERENDE_VERGADERING', 'prefLabel': 'Constituerende vergadering'}
+2025-07-10 15:19:17,118 [INFO] Merged node ActiviteitSoort(key=DELEGATIEVERGADERING) props={'key': 'DELEGATIEVERGADERING', 'prefLabel': 'Delegatievergadering'}
+2025-07-10 15:19:17,120 [INFO] Merged node ActiviteitSoort(key=EMAILPROCEDURE) props={'key': 'EMAILPROCEDURE', 'prefLabel': 'E-mailprocedure'}
+2025-07-10 15:19:17,122 [INFO] Merged node ActiviteitSoort(key=GESPREK) props={'key': 'GESPREK', 'prefLabel': 'Gesprek'}
+2025-07-10 15:19:17,124 [INFO] Merged node ActiviteitSoort(key=HAMERSTUKKEN) props={'key': 'HAMERSTUKKEN', 'prefLabel': 'Hamerstukken'}
+2025-07-10 15:19:17,126 [INFO] Merged node ActiviteitSoort(key=HERDENKING) props={'key': 'HERDENKING', 'prefLabel': 'Herdenking'}
