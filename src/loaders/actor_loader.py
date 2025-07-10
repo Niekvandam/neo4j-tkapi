@@ -70,7 +70,8 @@ def load_activiteit_actors(conn: Neo4jConnection, batch_size: int = 50, start_da
     api = TKApi()
     ActiviteitActor.expand_params = ['Activiteit','Persoon','Fractie','Commissie']
     filter = ActiviteitActor.create_filter()
-    filter.add_filter_str(f"Datum ge {start_date_str}")
+    # ActiviteitActor has no 'Datum' attribute; use last-modified timestamp instead.
+    filter.add_filter_str(f"GewijzigdOp ge {start_date_str}")
     actors = api.get_items(ActiviteitActor, filter=filter)
     print(f"→ Fetched {len(actors)} ActiviteitActors")
     with conn.driver.session(database=conn.database) as session:

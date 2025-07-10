@@ -26,6 +26,34 @@ def normalize_name(name: str) -> str:
     
     return normalized.strip()
 
+# -------------------------------------------------
+# New helpers for stricter matching
+# -------------------------------------------------
+
+
+def _detect_gender_from_title(raw_name: str) -> str | None:
+    """Infer gender from Dutch parliamentary salutation prefix.
+
+    Returns "man", "vrouw", or None when it cannot be inferred."""
+    if not raw_name:
+        return None
+    lower = raw_name.lower().strip()
+    if lower.startswith("mevrouw"):
+        return "vrouw"
+    if lower.startswith("de heer"):
+        return "man"
+    return None
+
+
+def _first_name_close_match(a: str, b: str) -> bool:
+    """Return True when first names are the same or highly similar (>= 80 fuzzy)."""
+    if not a or not b:
+        return False
+    a_l, b_l = a.lower().strip(), b.lower().strip()
+    if a_l == b_l:
+        return True
+    return fuzz.ratio(a_l, b_l) >= 80
+
 
 # -----------------------------
 # Name parsing improvements
@@ -47,10 +75,20 @@ def _strip_title_prefix(name: str) -> str:
 def _reorder_dutch_prefix(tokens: list[str]) -> list[str]:
     """If tokens end with a surname prefix (van, de, der, den), move it before previous token(s).
     E.g. ["Rij", "van"] -> ["van", "Rij"]"""
-    if len(tokens) >= 2 and tokens[-1].lower() in {"van", "de", "der", "den"}:
-        prefix = tokens[-1]
-        rest = tokens[:-1]
-        tokens = [prefix] + rest
+    if len(tokens) < 2:
+        return tokens
+
+    last = tokens[-1].lower()
+    second_last = tokens[-2].lower() if len(tokens) >= 2 else ''
+
+    # Single-word prefix at end (… van / de / der / den)
+    if last in {"van", "de", "der", "den"}:
+        return [tokens[-1]] + tokens[:-1]
+
+    # Two-word Dutch prefixes such as "van der", "van de", "van den"
+    if second_last == "van" and last in {"der", "de", "den"}:
+        return [tokens[-2], tokens[-1]] + tokens[:-2]
+
     return tokens
 
 
@@ -223,7 +261,13 @@ def find_matching_persoon(session, vlos_speaker: Dict[str, Any]) -> Optional[Dic
     vlos_voornaam = vlos_speaker.get('voornaam', name_parts['voornaam']) or ''
     vlos_achternaam = vlos_speaker.get('achternaam', name_parts['achternaam']) or ''
     vlos_fractie = str(vlos_speaker.get('fractie', '') or '').strip()
-    
+
+    # -------------------------------------------------
+    # Enforce first-name and gender consistency up-front
+    # -------------------------------------------------
+
+    speaker_gender = _detect_gender_from_title(vlos_speaker.get('name', ''))
+
     # Query for potential Persoon matches (current and former officials)
     query = """
     MATCH (p:Persoon)
@@ -256,6 +300,16 @@ def find_matching_persoon(session, vlos_speaker: Dict[str, Any]) -> Optional[Dic
                 {'voornaam': vlos_voornaam, 'achternaam': vlos_achternaam},
                 persoon_data
             )
+
+            # Hard filter: first name must be a close match (protect against Pierre≠Vivianne etc.)
+            persoon_first_name_raw = persoon_data.get('roepnaam') or persoon_data.get('voornaam') or ''
+            if not _first_name_close_match(vlos_voornaam, persoon_first_name_raw):
+                continue  # skip – first names too different
+
+            # Hard filter on gender if we can infer it
+            if speaker_gender and persoon_data.get('geslacht'):
+                if speaker_gender != persoon_data['geslacht'].lower():
+                    continue  # skip – gender mismatch
 
             # Extra guard: for ministers/state secretaries require strong first-name match
             if is_minister and name_score < 60:

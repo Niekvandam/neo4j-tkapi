@@ -26,11 +26,11 @@ def process_single_zaak(session, zaak_obj):
     props = {
         'nummer': zaak_obj.nummer,
         'onderwerp': zaak_obj.onderwerp or '',
-        'soort': zaak_obj.soort,
+        'soort': zaak_obj.soort.name if hasattr(zaak_obj.soort, 'name') else zaak_obj.soort,
         # Use 'gestart_op' (start date) since Zaak objects have no 'datum' attribute
         'datum': str(getattr(zaak_obj, 'gestart_op', None)) if getattr(zaak_obj, 'gestart_op', None) else None,
         'afgedaan': zaak_obj.afgedaan,
-        'status': getattr(zaak_obj, 'status', None),
+        'status': getattr(zaak_obj, 'status', None).name if hasattr(getattr(zaak_obj, 'status', None), 'name') else getattr(zaak_obj, 'status', None),
         'dossier_id': zaak_obj.dossier.id if getattr(zaak_obj, 'dossier', None) else None,
         'source': 'tkapi'
     }
@@ -85,11 +85,11 @@ def process_single_zaak_threaded(zaak_obj, conn: Neo4jConnection, checkpoint_con
             props = {
                 'nummer': zaak_obj.nummer,
                 'onderwerp': zaak_obj.onderwerp or '',
-                'soort': zaak_obj.soort,
+                'soort': zaak_obj.soort.name if hasattr(zaak_obj.soort, 'name') else zaak_obj.soort,
                 # Use 'gestart_op' (start date) since Zaak objects have no 'datum' attribute
                 'datum': str(getattr(zaak_obj, 'gestart_op', None)) if getattr(zaak_obj, 'gestart_op', None) else None,
                 'afgedaan': zaak_obj.afgedaan,
-                'status': getattr(zaak_obj, 'status', None),
+                'status': getattr(zaak_obj, 'status', None).name if hasattr(getattr(zaak_obj, 'status', None), 'name') else getattr(zaak_obj, 'status', None),
                 'dossier_id': zaak_obj.dossier.id if getattr(zaak_obj, 'dossier', None) else None,
                 'source': 'tkapi'
             }

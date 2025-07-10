@@ -40,6 +40,43 @@ def process_and_load_vergadering(session, driver, vergadering_obj: Vergadering, 
     session.execute_write(merge_node, 'Vergadering', 'id', props)
     print(f"    ↳ Processed API Vergadering: {vergadering_obj.id} - {vergadering_obj.titel}")
 
+    # ------------------------------------------------------------
+    # NEW: Link Vergadering to its direct child entities so that
+    #       follow-up matchers (VLOS, etc.) can traverse the graph.
+    #       This logic used to exist only in process_single_vergadering
+    #       and was therefore skipped in normal loader runs.
+    # ------------------------------------------------------------
+
+    for attr_name, (target_label, rel_type, target_key_prop) in REL_MAP_VERGADERING.items():
+        related_items = getattr(vergadering_obj, attr_name, []) or []
+
+        # Normalise to list
+        if not isinstance(related_items, list):
+            related_items = [related_items]
+
+        for rel_obj in related_items:
+            if not rel_obj:
+                continue
+            key_val = getattr(rel_obj, target_key_prop, None)
+            if not key_val:
+                continue
+
+            # Ensure the child node exists (minimal merge)
+            session.execute_write(
+                merge_node,
+                target_label,
+                target_key_prop,
+                {target_key_prop: key_val}
+            )
+
+            # Create / merge the relationship
+            session.execute_write(
+                merge_rel,
+                'Vergadering', 'id', vergadering_obj.id,
+                target_label,  target_key_prop, key_val,
+                rel_type
+            )
+
     # Process related Verslag from API
     if vergadering_obj.verslag:
         if process_xml and process_and_load_verslag(session, driver, vergadering_obj.verslag, 
