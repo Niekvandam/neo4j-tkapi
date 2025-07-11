@@ -904,11 +904,20 @@ def test_sample_vlos_files_agendapunt_matching():
         file_match_count = 0
 
         for xml_act in vergadering_el.findall('vlos:activiteit', NS):
+            xml_soort = xml_act.get('soort', '').lower()
+            xml_titel = xml_act.findtext('vlos:titel', default='', namespaces=NS).lower()
+            
+            # Skip procedural activities that don't have meaningful API counterparts
+            if (xml_soort in ['opening', 'sluiting'] or 
+                'opening' in xml_titel or 'sluiting' in xml_titel):
+                print(f'  ⏭️ Skipping procedural activity: "{xml_soort}" - "{xml_titel}"')
+                continue
+            
             total_xml_acts += 1
             file_xml_count += 1
             xml_id = xml_act.get('objectid')  # Keep for debugging, but don't use as key
-            xml_soort = xml_act.get('soort')
-            xml_titel = xml_act.findtext('vlos:titel', default='', namespaces=NS)
+            xml_soort = xml_act.get('soort')  # Get original soort for processing
+            xml_titel = xml_act.findtext('vlos:titel', default='', namespaces=NS)  # Get original titel for processing
             xml_onderwerp = xml_act.findtext('vlos:onderwerp', default='', namespaces=NS)
 
             xml_start = parse_xml_datetime(

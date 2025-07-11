@@ -18,11 +18,45 @@ from loaders.fractie_loader import load_fracties
 from loaders.toezegging_loader import load_toezeggingen
 from loaders.actor_loader import load_activiteit_actors
 
+# Import VLOS analysis loader
+from loaders.vlos_neo4j_loader import load_vlos_analysis
+
 # Import common processors for utility functions
 from loaders.processors.common_processors import clear_processed_ids
 
 from core.connection.neo4j_connection import Neo4jConnection
 from core.config.cli_config import get_skip_count_for_loader
+
+
+def filter_loaders_by_config(loaders: list, config: Dict[str, Any]) -> list:
+    """Filter loaders based on configuration (--only-vlos, --only-loader, --skip-loaders)"""
+    
+    # Handle --only-vlos
+    if config.get("only_vlos"):
+        return [loader for loader in loaders if loader["name"] == "vlos_analysis"]
+    
+    # Handle --only-loader
+    if config.get("only_loader"):
+        target_loader = config["only_loader"]
+        matching_loaders = [loader for loader in loaders if loader["name"] == target_loader]
+        if not matching_loaders:
+            print(f"❌ Loader '{target_loader}' not found. Available loaders:")
+            for loader in loaders:
+                print(f"   - {loader['name']}")
+            return []
+        return matching_loaders
+    
+    # Handle --skip-loaders
+    skip_loaders = config.get("skip_loaders", [])
+    if skip_loaders:
+        filtered_loaders = [loader for loader in loaders if loader["name"] not in skip_loaders]
+        if len(filtered_loaders) < len(loaders):
+            skipped_names = [loader["name"] for loader in loaders if loader["name"] in skip_loaders]
+            print(f"⏭️ Skipping loaders: {', '.join(skipped_names)}")
+        return filtered_loaders
+    
+    # No filtering - return all loaders
+    return loaders
 
 
 def run_loader_with_checkpoint(
@@ -77,9 +111,23 @@ def execute_all_loaders(
 
     # Define loader sequence with their configurations
     loaders = [
-        # Core entity loaders
+        # Core entity loaders (commented out for now)
         {"name": "personen", "func": load_personen, "args": (conn,), "kwargs": {}},
         {"name": "fracties", "func": load_fracties, "args": (conn,), "kwargs": {}},
+        
+        # Foundation loaders - these create the basic entities that others reference
+        {
+            "name": "vergaderingen",
+            "func": load_vergaderingen,
+            "args": (conn,),
+            "kwargs": {
+                "start_date_str": config["start_date"],
+                "skip_count": get_skip_count_for_loader(
+                    config, "vergaderingen", config["skip_vergaderingen"]
+                ),
+            },
+        },
+        
         # Main data loaders (order matters due to relationships)
         {
             "name": "activiteiten",
@@ -95,6 +143,12 @@ def execute_all_loaders(
                 ),
                 "overwrite": config["overwrite"],
             },
+        },
+        {
+            "name": "activiteit_actors",
+            "func": load_activiteit_actors,
+            "args": (conn,),
+            "kwargs": {"start_date_str": config["start_date"]},
         },
         {
             "name": "zaken",
@@ -129,17 +183,20 @@ def execute_all_loaders(
                 "overwrite": config["overwrite"],
             },
         },
+        
+        # VLOS Analysis loader - processes XML files for parliamentary analysis
+        # NOTE: This DEPENDS on vergaderingen being loaded first!
         {
-            "name": "vergaderingen",
-            "func": load_vergaderingen,
+            "name": "vlos_analysis",
+            "func": load_vlos_analysis,
             "args": (conn,),
             "kwargs": {
+                "xml_files_pattern": config.get("vlos_pattern", "sample_vlos_*.xml"),
                 "start_date_str": config["start_date"],
-                "skip_count": get_skip_count_for_loader(
-                    config, "vergaderingen", config["skip_vergaderingen"]
-                ),
+                "use_api": config.get("use_vlos_api", True),
             },
         },
+        
         # Secondary loaders
         {
             "name": "toezeggingen",
@@ -147,16 +204,14 @@ def execute_all_loaders(
             "args": (conn,),
             "kwargs": {"start_date_str": config["start_date"]},
         },
-        {
-            "name": "activiteit_actors",
-            "func": load_activiteit_actors,
-            "args": (conn,),
-            "kwargs": {"start_date_str": config["start_date"]},
-        },
+
     ]
 
+    # Filter loaders based on configuration
+    filtered_loaders = filter_loaders_by_config(loaders, config)
+    
     # Execute loaders in sequence
-    for loader_config in loaders:
+    for loader_config in filtered_loaders:
         # Filter out None values from kwargs
         kwargs = {k: v for k, v in loader_config["kwargs"].items() if v is not None}
 
@@ -174,26 +229,19 @@ def execute_all_loaders(
                 f"❌ Loader {loader_config['name']} failed, but continuing with remaining loaders..."
             )
 
-    # After all primary loaders, process any deferred VLOS XML items with enhanced matching
+    # DEPRECATED: VLOS processing has been moved to new modular system
+    # The old deferred VLOS processing is now deprecated
     try:
-        from loaders.processors.common_processors import DEFERRED_VLOS_ITEMS
-        from loaders.enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
+        from loaders.processors.common_processors import DEFERRED_VLOS_ITEMS, process_deferred_vlos_items
 
         if DEFERRED_VLOS_ITEMS:
-            print(f"🚚 Processing {len(DEFERRED_VLOS_ITEMS)} deferred VLOS verslagen with enhanced matching...")
-            for xml_string, vergadering_id, verslag_id in DEFERRED_VLOS_ITEMS:
-                try:
-                    counts = load_enhanced_vlos_verslag(conn.driver, xml_string, vergadering_id, verslag_id)
-                    print(f"✅ Enhanced VLOS processing complete for Verslag {verslag_id}")
-                    print(f"   📊 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
-                          f"Speakers {counts['matched_speakers']}/{counts['speakers']}, "
-                          f"Zaken {counts['matched_zaken']}/{counts['zaken']}")
-                except Exception as e:
-                    success = False
-                    print(f"❌ Error processing deferred VLOS verslag {verslag_id}: {e}")
-            print("✅ Completed processing deferred VLOS verslagen with enhanced matching.")
+            print(f"🔄 Processing deprecated VLOS items...")
+            # Call the deprecated processing function that will skip the items
+            process_deferred_vlos_items(conn.driver)
+            print("✅ Completed deprecation notice for VLOS verslagen.")
+        else:
+            print("📋 No deprecated VLOS items to process.")
     except Exception as e:
-        success = False
-        print(f"❌ Error in deferred enhanced VLOS processing stage: {e}")
+        print(f"⚠️  Note: VLOS processing has been deprecated - {e}")
 
     return success

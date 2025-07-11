@@ -8,7 +8,7 @@ from tkapi.zaak import Zaak # For expand_params
 from core.connection.neo4j_connection import Neo4jConnection
 from utils.helpers import merge_node, merge_rel
 from .processors.common_processors import process_and_load_besluit, PROCESSED_BESLUIT_IDS, process_and_load_zaak, PROCESSED_ZAAK_IDS
-from .vlos_verslag_loader import load_vlos_verslag
+# Note: VLOS processing is now handled by the new vlos_neo4j_loader
 from tkapi.util import util as tkapi_util
 from datetime import timezone
 import time

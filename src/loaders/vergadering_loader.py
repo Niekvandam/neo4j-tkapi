@@ -1,124 +1,47 @@
+"""
+Simple Vergadering Loader - Creates foundation Vergadering nodes for VLOS analysis
+
+This loader creates the basic Vergadering nodes from TK API that the VLOS analysis
+loader can reference. It's kept simple to avoid circular dependencies.
+"""
+
 import datetime
-import time
 from tkapi import TKApi
-from tkapi.vergadering import Vergadering, VergaderingFilter, VergaderingSoort # Ensure VergaderingFilter & Soort are imported
-from tkapi.verslag import Verslag
+from tkapi.vergadering import Vergadering, VergaderingSoort
 from core.connection.neo4j_connection import Neo4jConnection
-from utils.helpers import merge_node, merge_rel
-from .processors.common_processors import process_and_load_verslag, PROCESSED_VERSLAG_IDS, download_verslag_xml, process_and_load_zaak, PROCESSED_ZAAK_IDS, process_deferred_vlos_items
-from tkapi.util import util as tkapi_util
-from datetime import timezone, timedelta
-
-# Import checkpoint functionality
-from core.checkpoint.checkpoint_manager import LoaderCheckpoint, CheckpointManager
-
-# Import the checkpoint decorator
 from core.checkpoint.checkpoint_decorator import checkpoint_loader
-
-# Import interface system
-from core.interfaces import BaseLoader, LoaderConfig, LoaderResult, LoaderCapability, loader_registry
-
-# Timezone handling for creating API query filters
-LOCAL_TIMEZONE_OFFSET_HOURS_API = 2 # Example: CEST
-
-# Import processor functions
-from .processors.vergadering_processor import (
-    process_and_load_vergadering, 
-    process_single_vergadering, 
-    setup_vergadering_api_filter,
-    REL_MAP_VERGADERING
-)
+from utils.helpers import merge_node, merge_rel
+from datetime import timezone
 
 
-class VergaderingLoader(BaseLoader):
-    """Loader for Vergadering entities with full interface support"""
+def setup_vergadering_api_filter(start_date_str: str):
+    """Set up the Vergadering API filter for a date range"""
+    # Parse the start date
+    start_datetime = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    start_utc = start_datetime.replace(tzinfo=timezone.utc)
     
-    def __init__(self):
-        super().__init__(
-            name="vergadering_loader",
-            description="Loads Vergaderingen from TK API with related entities and checkpoint support"
-        )
-        self._capabilities = [
-            LoaderCapability.BATCH_PROCESSING,
-            LoaderCapability.DATE_FILTERING,
-            LoaderCapability.SKIP_FUNCTIONALITY,
-            LoaderCapability.INCREMENTAL_LOADING,
-            LoaderCapability.RELATIONSHIP_PROCESSING
-        ]
+    # Create filter for vergaderingen from the start date
+    filter_obj = Vergadering.create_filter()
+    filter_obj.add_filter_str(f"Datum ge {start_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     
-    def validate_config(self, config: LoaderConfig) -> list[str]:
-        """Validate configuration specific to VergaderingLoader"""
-        errors = super().validate_config(config)
-        
-        # Add specific validation for Vergadering loader
-        if config.custom_params and 'process_xml' in config.custom_params:
-            if not isinstance(config.custom_params['process_xml'], bool):
-                errors.append("custom_params.process_xml must be a boolean")
-        
-        return errors
-    
-    def load(self, conn: Neo4jConnection, config: LoaderConfig, 
-             checkpoint_manager: CheckpointManager = None) -> LoaderResult:
-        """Main loading method implementing the interface"""
-        start_time = time.time()
-        result = LoaderResult(
-            success=False,
-            processed_count=0,
-            failed_count=0,
-            skipped_count=0,
-            total_items=0,
-            execution_time_seconds=0.0,
-            error_messages=[],
-            warnings=[]
-        )
-        
-        try:
-            # Validate configuration
-            validation_errors = self.validate_config(config)
-            if validation_errors:
-                result.error_messages.extend(validation_errors)
-                return result
-            
-            # Use the decorated function for actual loading
-            load_result = load_vergaderingen(
-                conn=conn,
-                batch_size=config.batch_size,
-                start_date_str=config.start_date or "2024-01-01",
-                skip_count=config.skip_count
-            )
-            
-            # For now, we'll mark as successful if no exceptions occurred
-            result.success = True
-            result.execution_time_seconds = time.time() - start_time
-            
-        except Exception as e:
-            result.error_messages.append(f"Loading failed: {str(e)}")
-            result.execution_time_seconds = time.time() - start_time
-        
-        return result
-
-
-# Register the loader
-vergadering_loader_instance = VergaderingLoader()
-loader_registry.register(vergadering_loader_instance)
-
-
-# Processor function moved to processors/vergadering_processor.py
+    return filter_obj
 
 
 @checkpoint_loader(checkpoint_interval=25)
-def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", skip_count: int = 0, _checkpoint_context=None):
+def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", 
+                       skip_count: int = 0, _checkpoint_context=None):
     """
-    Load Vergaderingen with automatic checkpoint support using decorator.
+    Load Vergaderingen from TK API with automatic checkpoint support.
     
-    The @checkpoint_loader decorator automatically handles:
-    - Progress tracking every 25 items
-    - Skipping already processed items
-    - Error handling and logging
-    - Final progress reporting
+    This creates the foundation Vergadering nodes that the VLOS analysis loader
+    can reference via canonical_api_vergadering_id.
     """
+    print("🏛️ Loading Vergaderingen from TK API...")
+    
     api = TKApi()
     filter_obj = setup_vergadering_api_filter(start_date_str)
+    
+    # Get vergaderingen from API
     vergaderingen_api = api.get_items(Vergadering, filter=filter_obj)
     print(f"→ Fetched {len(vergaderingen_api)} Vergaderingen since {start_date_str}")
 
@@ -134,34 +57,54 @@ def load_vergaderingen(conn: Neo4jConnection, batch_size: int = 50, start_date_s
         vergaderingen_api = vergaderingen_api[skip_count:]
         print(f"⏭️ Skipping first {skip_count} items. Processing {len(vergaderingen_api)} remaining items.")
 
-    def process_vergadering_wrapper(vergadering_obj):
+    def process_single_vergadering(vergadering_obj):
+        """Process a single Vergadering object"""
         with conn.driver.session(database=conn.database) as session:
-            process_and_load_vergadering(session, conn.driver, vergadering_obj, process_xml=True)
+            if not vergadering_obj or not vergadering_obj.id:
+                return
 
-    # Clear processed IDs at the beginning
-    PROCESSED_ZAAK_IDS.clear()
+            # Create basic Vergadering node
+            props = {
+                'id': vergadering_obj.id,
+                'titel': vergadering_obj.titel,
+                'nummer': vergadering_obj.nummer,
+                'zaal': vergadering_obj.zaal,
+                'soort': vergadering_obj.soort.name if vergadering_obj.soort else None,
+                'datum': str(vergadering_obj.datum) if vergadering_obj.datum else None,
+                'begin': str(vergadering_obj.begin) if vergadering_obj.begin else None,
+                'einde': str(vergadering_obj.einde) if vergadering_obj.einde else None,
+                'samenstelling': vergadering_obj.samenstelling,
+                'source': 'tkapi'
+            }
+            
+            session.execute_write(merge_node, 'Vergadering', 'id', props)
+            
+            # Create minimal links to related entities (IDs only)
+            # This provides the foundation for VLOS analysis to reference
+            
+            # Link to activiteiten (if expanded)
+            if hasattr(vergadering_obj, 'activiteiten') and vergadering_obj.activiteiten:
+                for activiteit in vergadering_obj.activiteiten:
+                    # Create minimal Activiteit node
+                    session.execute_write(merge_node, 'Activiteit', 'id', {'id': activiteit.id})
+                    session.execute_write(merge_rel, 'Vergadering', 'id', vergadering_obj.id,
+                                          'Activiteit', 'id', activiteit.id, 'HAS_ACTIVITEIT')
+            
+            # Link to zaken (if expanded)
+            if hasattr(vergadering_obj, 'zaken') and vergadering_obj.zaken:
+                for zaak in vergadering_obj.zaken:
+                    # Create minimal Zaak node
+                    session.execute_write(merge_node, 'Zaak', 'id', {'id': zaak.id})
+                    session.execute_write(merge_rel, 'Vergadering', 'id', vergadering_obj.id,
+                                          'Zaak', 'id', zaak.id, 'DISCUSSES_ZAAK')
 
     # Use the checkpoint context to process items automatically
     if _checkpoint_context:
-        _checkpoint_context.process_items(vergaderingen_api, process_vergadering_wrapper)
+        _checkpoint_context.process_items(vergaderingen_api, process_single_vergadering)
     else:
         # Fallback for when decorator is not used
         for vergadering_obj in vergaderingen_api:
-            process_vergadering_wrapper(vergadering_obj)
+            process_single_vergadering(vergadering_obj)
 
-    print("✅ Loaded Vergaderingen and their related entities.")
-    
-    # Process any deferred VLOS items with comprehensive parliamentary analysis
-    print("\n🔄 Processing deferred VLOS items...")
-    process_deferred_vlos_items(conn.driver)
-    print("✅ All processing complete!")
-
-
-# Keep the original function for backward compatibility (if needed)
-def load_vergaderingen_original(conn: Neo4jConnection, batch_size: int = 50, start_date_str: str = "2024-01-01", checkpoint_manager=None):
-    """
-    Original load_vergaderingen function for backward compatibility.
-    This version is deprecated - use load_vergaderingen() for the new decorator-based version.
-    """
-    # This could import the old implementation if needed, but for now we'll use the new one
-    return load_vergaderingen(conn, batch_size, start_date_str)
+    print("✅ Loaded Vergaderingen successfully!")
+    print(f"   These foundation nodes can now be referenced by VLOS analysis") 

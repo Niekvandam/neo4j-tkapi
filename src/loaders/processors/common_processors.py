@@ -8,10 +8,9 @@ from tkapi.fractie import Fractie
 from tkapi.agendapunt import Agendapunt
 from tkapi.zaak import Zaak
 from utils.helpers import merge_node, merge_rel
-from loaders.vlos_verslag_loader import load_vlos_verslag # Legacy loader
-from loaders.enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag # Enhanced loader
 import requests
 import concurrent.futures # For verslag XML download
+import os
 from typing import Optional
 
 # --- Processed ID Sets ---
@@ -23,16 +22,49 @@ PROCESSED_ZAAK_IDS = set()  # For Zaken processed as nested entities
 PROCESSED_DOCUMENT_IDS = set()
 
 # --- Helper to download XML for Verslag ---
-def download_verslag_xml(verslag_id):
-    """Downloads the XML content for a given Verslag ID."""
+def download_verslag_xml(verslag_id, save_to_file=True, vergadering_id=None):
+    """Downloads the XML content for a given Verslag ID and optionally saves to file."""
     url = f"https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0/Verslag({verslag_id})/resource"
     try:
         response = requests.get(url, timeout=30)
         response.raise_for_status()
+        
+        # Save to file if requested
+        if save_to_file:
+            # Create filename with both vergadering and verslag IDs if available
+            if vergadering_id:
+                filename = f"sample_xml_{vergadering_id}_{verslag_id}.xml"
+            else:
+                filename = f"sample_xml_{verslag_id}.xml"
+            
+            try:
+                # Convert bytes to string for file saving
+                xml_content = response.content
+                if isinstance(xml_content, bytes):
+                    xml_string = xml_content.decode('utf-8')
+                else:
+                    xml_string = xml_content
+                
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(xml_string)
+                print(f"  💾 Saved XML to: {filename}")
+            except Exception as e:
+                print(f"  ⚠️ Warning: Could not save XML to file {filename}: {e}")
+        
         return response.content
     except requests.RequestException as e:
         print(f"  ✕ ERROR downloading XML for Verslag {verslag_id}: {e}")
         return None
+
+
+def _cleanup_xml_file(filename):
+    """Remove the XML file after processing."""
+    try:
+        if os.path.exists(filename):
+            os.remove(filename)
+            print(f"  🗑️ Cleaned up XML file: {filename}")
+    except Exception as e:
+        print(f"  ⚠️ Warning: Could not remove XML file {filename}: {e}")
 
 # --- Processor Functions ---
 
@@ -191,37 +223,15 @@ def process_and_load_verslag(session, driver, verslag_obj: Verslag,
         session.execute_write(merge_rel, 'Verslag', 'id', verslag_obj.id,
                               'Vergadering', 'id', verslag_obj.vergadering.id, 'REPORT_OF_VERGADERING') # More specific relation
 
-
-    # Download and process VLOS XML for this specific API verslag_obj
-    # The canonical_api_vergadering_id_for_vlos IS the related_vergadering_id in this flow
+    # NOTE: VLOS XML processing has been deprecated
+    # The old VLOS processing logic has been moved to deprecated/
+    # New modular VLOS processing will be implemented in src/vlos/
     if canonical_api_vergadering_id_for_vlos:
-        print(f"      - Downloading XML resource for API Verslag {verslag_obj.id} (linked to Vergadering {canonical_api_vergadering_id_for_vlos})...")
-        xml_content = download_verslag_xml(verslag_obj.id) # API Verslag ID is used to get the resource URL
-        if xml_content:
-            if defer_vlos_processing:
-                # Queue for later processing at end of ETL
-                xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
-                DEFERRED_VLOS_ITEMS.append((xml_str, canonical_api_vergadering_id_for_vlos, verslag_obj.id))
-                print(f"      ⏩ Deferred VLOS processing for Verslag {verslag_obj.id} (queued for later)")
-            else:
-                print(f"      - Parsing VLOS XML with Enhanced Matching for Verslag {verslag_obj.id}...")
-                # Use comprehensive enhanced VLOS loader with full parliamentary analysis
-                xml_str = xml_content.decode('utf-8') if isinstance(xml_content, bytes) else xml_content
-                from ..enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
-                counts = load_enhanced_vlos_verslag(driver, xml_str, canonical_api_vergadering_id_for_vlos, verslag_obj.id)
-                print(f"      ✔ Comprehensive Parliamentary Analysis complete for Verslag {verslag_obj.id}.")
-                print(f"        🎯 Match rates: Activities {counts['matched_activities']}/{counts['activities']}, "
-                      f"Speakers {counts['matched_speakers']}/{counts['speakers']}, "
-                      f"Zaken {counts['matched_zaken']}/{counts['zaken']}")
-                print(f"        🔗 Connections: {counts['speaker_zaak_connections']} speaker-zaak")
-                print(f"        🗣️ Interruptions: {counts['interruptions']}, 🗳️ Voting events: {counts['voting_events']}")
-            # Optional: Add a property to Verslag node indicating its VLOS XML has been processed
-            session.run("MATCH (vs:Verslag {id: $id}) SET vs.vlos_xml_processed = true", id=verslag_obj.id)
-
-        else:
-            print(f"      ! No XML content found/downloaded for API Verslag {verslag_obj.id}.")
-    else:
-        print(f"    ! Warning: No canonical_api_vergadering_id_for_vlos provided for Verslag {verslag_obj.id}, cannot process VLOS XML.")
+        print(f"      ⚠️  VLOS processing deprecated - XML download and processing disabled")
+        print(f"      💡 Future: New modular VLOS system will handle XML processing")
+        
+        # Mark that VLOS processing was skipped
+        session.run("MATCH (vs:Verslag {id: $id}) SET vs.vlos_processing_deprecated = true", id=verslag_obj.id)
         
     return True
 
@@ -272,63 +282,26 @@ def clear_processed_ids():
 
 
 # Insert after PROCESSED_VERSLAG_IDS set definition
-DEFERRED_VLOS_ITEMS = []  # Tuples of (xml_string, canonical_vergadering_id, verslag_id)
+# NOTE: Deferred VLOS processing has been deprecated
+DEFERRED_VLOS_ITEMS = []  # Deprecated - kept for compatibility
 
 
 def process_deferred_vlos_items(driver):
-    """Process all deferred VLOS items with comprehensive parliamentary analysis"""
+    """Deprecated: VLOS processing has been moved to new modular system"""
     if not DEFERRED_VLOS_ITEMS:
-        print("📋 No deferred VLOS items to process.")
+        print("📋 No deferred VLOS items to process (deprecated functionality).")
         return
     
-    print(f"🚀 Processing {len(DEFERRED_VLOS_ITEMS)} deferred VLOS items with comprehensive analysis...")
+    print(f"⚠️  VLOS processing deprecated - {len(DEFERRED_VLOS_ITEMS)} items skipped")
+    print("💡 Future: New modular VLOS system will handle parliamentary analysis")
     
-    from ..enhanced_vlos_verslag_loader import load_enhanced_vlos_verslag
-    
-    total_counts = {
-        'activities': 0,
-        'matched_activities': 0,
-        'speakers': 0,
-        'matched_speakers': 0,
-        'zaken': 0,
-        'matched_zaken': 0,
-        'speaker_zaak_connections': 0,
-        'interruptions': 0,
-        'voting_events': 0
-    }
-    
-    for i, (xml_str, canonical_vergadering_id, verslag_id) in enumerate(DEFERRED_VLOS_ITEMS, 1):
-        print(f"📄 Processing deferred VLOS {i}/{len(DEFERRED_VLOS_ITEMS)}: Verslag {verslag_id}")
-        
-        try:
-            counts = load_enhanced_vlos_verslag(driver, xml_str, canonical_vergadering_id, verslag_id)
-            
-            # Accumulate totals
-            for key in total_counts:
-                total_counts[key] += counts.get(key, 0)
-            
-            print(f"  ✅ Processed: {counts['matched_activities']}/{counts['activities']} activities, "
-                  f"{counts['matched_speakers']}/{counts['speakers']} speakers, "
-                  f"{counts['speaker_zaak_connections']} connections")
-                  
-        except Exception as e:
-            print(f"  ❌ Error processing deferred VLOS for Verslag {verslag_id}: {e}")
-    
-    # Clear the deferred items
+    # Clear the deferred items without processing
     DEFERRED_VLOS_ITEMS.clear()
     
     print("=" * 80)
-    print("🎯 DEFERRED VLOS PROCESSING COMPLETE")
+    print("🚨 DEPRECATED VLOS PROCESSING COMPLETE")
     print("=" * 80)
-    print(f"📊 Total Match Rates:")
-    print(f"  🎯 Activities: {total_counts['matched_activities']}/{total_counts['activities']} "
-          f"({100 * total_counts['matched_activities'] / max(total_counts['activities'], 1):.1f}%)")
-    print(f"  👥 Speakers: {total_counts['matched_speakers']}/{total_counts['speakers']} "
-          f"({100 * total_counts['matched_speakers'] / max(total_counts['speakers'], 1):.1f}%)")
-    print(f"  📋 Zaken: {total_counts['matched_zaken']}/{total_counts['zaken']} "
-          f"({100 * total_counts['matched_zaken'] / max(total_counts['zaken'], 1):.1f}%)")
-    print(f"🔗 Total Speaker-Zaak Connections: {total_counts['speaker_zaak_connections']}")
-    print(f"🗣️ Total Interruption Events: {total_counts['interruptions']}")
-    print(f"🗳️ Total Voting Events: {total_counts['voting_events']}")
-    print("=" * 80)
+    print("📋 All VLOS items were skipped due to deprecated functionality")
+    print("💡 New modular VLOS system will be implemented in src/vlos/")
+    print("🔄 Use the new system for parliamentary discourse analysis")
 

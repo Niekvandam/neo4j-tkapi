@@ -44,6 +44,14 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--overwrite", action="store_true", 
                        help="Overwrite existing data (skip ID existence checks for faster processing)")
     
+    # Selective loader arguments
+    parser.add_argument("--only-vlos", action="store_true",
+                       help="Run only the VLOS analysis loader")
+    parser.add_argument("--only-loader", type=str, 
+                       help="Run only the specified loader (e.g., 'vlos_analysis', 'activiteiten', 'zaken')")
+    parser.add_argument("--skip-loaders", type=str, nargs="+",
+                       help="Skip specific loaders (e.g., 'documents', 'zaken')")
+    
     return parser
 
 
@@ -59,7 +67,10 @@ def args_to_config(args: argparse.Namespace) -> Dict[str, Any]:
         'skip_zaken': args.skip_zaken,
         'skip_documents': args.skip_documents,
         'skip_vergaderingen': args.skip_vergaderingen,
-        'overwrite': args.overwrite
+        'overwrite': args.overwrite,
+        'only_vlos': args.only_vlos,
+        'only_loader': args.only_loader,
+        'skip_loaders': args.skip_loaders or []
     }
 
 
