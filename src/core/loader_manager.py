@@ -18,6 +18,10 @@ from loaders.fractie_loader import load_fracties
 from loaders.toezegging_loader import load_toezeggingen
 from loaders.actor_loader import load_activiteit_actors
 from loaders.commissie_loader import load_commissies
+from loaders.persoonfunctie_loader import load_persoon_functies
+from loaders.kamerstukdossier_loader import load_kamerstukdossiers
+from loaders.zaal_loader import load_zalen
+from loaders.reservering_loader import load_reserveringen
 
 # Import VLOS analysis loader
 from loaders.vlos_neo4j_loader import load_vlos_analysis
@@ -116,6 +120,11 @@ def execute_all_loaders(
         {"name": "personen", "func": load_personen, "args": (conn,), "kwargs": {}},
         {"name": "fracties", "func": load_fracties, "args": (conn,), "kwargs": {}},
         {"name": "commissies", "func": load_commissies, "args": (conn,), "kwargs": {}},
+        {"name": "persoon_functies", "func": load_persoon_functies, "args": (conn,), "kwargs": {}},
+        
+        # Infrastructure loaders
+        {"name": "zalen", "func": load_zalen, "args": (conn,), "kwargs": {}},
+        {"name": "reserveringen", "func": load_reserveringen, "args": (conn,), "kwargs": {}},
         
         # Foundation loaders - these create the basic entities that others reference
         {
@@ -184,6 +193,12 @@ def execute_all_loaders(
                 ),
                 "overwrite": config["overwrite"],
             },
+        },
+        {
+            "name": "kamerstukdossiers",
+            "func": load_kamerstukdossiers,
+            "args": (conn,),
+            "kwargs": {},
         },
         
         # VLOS Analysis loader - processes XML files for parliamentary analysis

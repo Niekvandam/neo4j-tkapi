@@ -126,3 +126,27 @@ TKAPI_CONNECT_TIMEOUT = float(os.getenv('TKAPI_CONNECT_TIMEOUT', '15.0'))
 TKAPI_READ_TIMEOUT = float(os.getenv('TKAPI_READ_TIMEOUT', '300.0'))
 TKAPI_MAX_RETRIES = int(os.getenv('TKAPI_MAX_RETRIES', '3'))
 TKAPI_BACKOFF_FACTOR = float(os.getenv('TKAPI_BACKOFF_FACTOR', '0.5'))
+
+# --- New Entity Relationship Maps ---
+
+REL_MAP_PERSOON_FUNCTIE = {
+    'persoon': ('Persoon', 'PERSON_HAS_FUNCTION', 'id'),
+    'fractie': ('Fractie', 'FUNCTION_FOR_FRACTIE', 'id'),
+}
+
+REL_MAP_KAMERSTUKDOSSIER = {
+    'documenten': ('Document', 'CONTAINS_DOCUMENT', 'id'),
+    'zaken': ('Zaak', 'CONTAINS_ZAAK', 'nummer'),
+}
+
+REL_MAP_ZAAL = {
+    'activiteiten': ('Activiteit', 'HOSTS_ACTIVITEIT', 'id'),
+    'vergaderingen': ('Vergadering', 'HOSTS_VERGADERING', 'id'),
+    'reserveringen': ('Reservering', 'HAS_RESERVERING', 'id'),
+}
+
+REL_MAP_RESERVERING = {
+    'zaal': ('Zaal', 'RESERVES_ZAAL', 'id'),
+    'activiteit': ('Activiteit', 'FOR_ACTIVITEIT', 'id'),
+    'vergadering': ('Vergadering', 'FOR_VERGADERING', 'id'),
+}
