@@ -17,6 +17,7 @@ from loaders.persoon_loader import load_personen
 from loaders.fractie_loader import load_fracties
 from loaders.toezegging_loader import load_toezeggingen
 from loaders.actor_loader import load_activiteit_actors
+from loaders.commissie_loader import load_commissies
 
 # Import VLOS analysis loader
 from loaders.vlos_neo4j_loader import load_vlos_analysis
@@ -114,6 +115,7 @@ def execute_all_loaders(
         # Core entity loaders (commented out for now)
         {"name": "personen", "func": load_personen, "args": (conn,), "kwargs": {}},
         {"name": "fracties", "func": load_fracties, "args": (conn,), "kwargs": {}},
+        {"name": "commissies", "func": load_commissies, "args": (conn,), "kwargs": {}},
         
         # Foundation loaders - these create the basic entities that others reference
         {
